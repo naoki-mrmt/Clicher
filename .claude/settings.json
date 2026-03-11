@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift *)",
+      "Bash(xcodebuild *)",
+      "Bash(xcrun *)",
+      "Bash(open *)",
+      "Bash(git *)",
+      "Bash(codesign *)",
+      "Bash(create-dmg *)",
+      "Bash(brew *)"
+    ],
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)"
+    ]
+  }
+}
