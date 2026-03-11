@@ -9,9 +9,31 @@ import SwiftUI
 
 @main
 struct ClicherApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var coordinator = CaptureCoordinator()
+    @Environment(\.openWindow) private var openWindow
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        // メニューバーアプリ（Dockアイコンなし）
+        MenuBarExtra("Clicher", systemImage: "camera.viewfinder") {
+            MenuBarView(coordinator: coordinator)
         }
+
+        // 設定ウィンドウ
+        Settings {
+            SettingsView(settings: coordinator.settings)
+        }
+
+        // Annotateエディタウィンドウ
+        Window("Annotate", id: "annotate") {
+            if let result = coordinator.lastCaptureResult {
+                AnnotateEditorView(
+                    captureResult: result,
+                    settings: coordinator.settings,
+                    onDismiss: { coordinator.dismissAnnotateEditor() }
+                )
+            }
+        }
+        .defaultSize(width: 900, height: 700)
     }
 }
