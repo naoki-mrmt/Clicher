@@ -48,6 +48,18 @@ struct CaptureResult: Identifiable, Sendable {
 enum ExportFormat: Sendable {
     case png
     case jpeg(quality: Double)
+
+    var isPng: Bool {
+        if case .png = self { return true }
+        return false
+    }
+
+    var fileExtension: String {
+        switch self {
+        case .png: "png"
+        case .jpeg: "jpg"
+        }
+    }
 }
 
 /// キャプチャ関連エラー

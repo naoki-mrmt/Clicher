@@ -17,6 +17,15 @@ struct ClicherApp: App {
         // メニューバーアプリ（Dockアイコンなし）
         MenuBarExtra("Clicher", systemImage: "camera.viewfinder") {
             MenuBarView(coordinator: coordinator)
+                .task {
+                    connectHotkeys()
+                    await coordinator.permissionManager.checkAllPermissions()
+                }
+                .onChange(of: coordinator.showAnnotateEditor) {
+                    if coordinator.showAnnotateEditor {
+                        openWindow(id: "annotate")
+                    }
+                }
         }
 
         // 設定ウィンドウ
@@ -35,5 +44,23 @@ struct ClicherApp: App {
             }
         }
         .defaultSize(width: 900, height: 700)
+    }
+
+    // MARK: - Hotkey → Coordinator Bridge
+
+    private func connectHotkeys() {
+        appDelegate.onAreaCapture = { [coordinator] in
+            coordinator.startAreaCapture()
+            CaptureOverlayWindowController.shared.show(coordinator: coordinator)
+        }
+        appDelegate.onWindowCapture = { [coordinator] in
+            coordinator.startWindowCapture()
+            CaptureOverlayWindowController.shared.show(coordinator: coordinator)
+        }
+        appDelegate.onFullscreenCapture = { [coordinator] in
+            Task {
+                await coordinator.captureFullscreen()
+            }
+        }
     }
 }

@@ -62,9 +62,7 @@ final class CaptureCoordinator {
                 sourceRect: CGRect(x: 0, y: 0, width: display.width, height: display.height)
             )
             lastCaptureResult = result
-            if settings.showOverlayAfterCapture {
-                showOverlay = true
-            }
+            showQuickAccessOverlay()
         } catch {
             captureError = .captureFailedGeneric
         }
@@ -90,9 +88,7 @@ final class CaptureCoordinator {
                 sourceRect: rect
             )
             lastCaptureResult = result
-            if settings.showOverlayAfterCapture {
-                showOverlay = true
-            }
+            showQuickAccessOverlay()
         } catch {
             captureError = .captureFailedGeneric
         }
@@ -113,12 +109,24 @@ final class CaptureCoordinator {
                 sourceRect: window.frame
             )
             lastCaptureResult = result
-            if settings.showOverlayAfterCapture {
-                showOverlay = true
-            }
+            showQuickAccessOverlay()
         } catch {
             captureError = .captureFailedGeneric
         }
+    }
+
+    // MARK: - Overlay
+
+    /// キャプチャ完了後に Overlay を表示
+    private func showQuickAccessOverlay() {
+        guard let result = lastCaptureResult, settings.showOverlayAfterCapture else { return }
+        showOverlay = true
+        OverlayWindowController.shared.show(
+            captureResult: result,
+            coordinator: self,
+            position: settings.overlayPosition,
+            autoCloseDelay: settings.overlayAutoCloseDelay
+        )
     }
 
     // MARK: - Post-capture Actions
@@ -127,17 +135,19 @@ final class CaptureCoordinator {
     func copyToClipboard() {
         lastCaptureResult?.copyToClipboard()
         showOverlay = false
+        OverlayWindowController.shared.dismiss()
     }
 
     /// キャプチャ結果をファイルに保存
     func saveToFile() {
         guard let result = lastCaptureResult else { return }
         let fileName = settings.fileNamePattern.generateName()
-        let ext = settings.defaultExportFormat == .png ? "png" : "jpg"
+        let ext = settings.defaultExportFormat.fileExtension
         let url = settings.defaultSaveDirectory.appending(path: "\(fileName).\(ext)")
         do {
             try result.save(to: url, format: settings.defaultExportFormat)
             showOverlay = false
+            OverlayWindowController.shared.dismiss()
         } catch {
             captureError = .exportFailed
         }
@@ -152,6 +162,7 @@ final class CaptureCoordinator {
     /// Overlay を閉じる
     func dismissOverlay() {
         showOverlay = false
+        OverlayWindowController.shared.dismiss()
     }
 
     /// Annotate エディタを閉じる

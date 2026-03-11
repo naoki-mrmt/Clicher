@@ -1,5 +1,6 @@
 import ScreenCaptureKit
 import CoreGraphics
+import CoreImage
 import AppKit
 
 /// ScreenCaptureKit を使用したキャプチャサービス

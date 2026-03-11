@@ -64,8 +64,10 @@ final class HotkeyManager {
         let flags = event.flags
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
+        let isCommandShift = flags.contains([.maskCommand, .maskShift])
+
         // ⌘⇧4 → Area Capture
-        if flags.contains([.maskCommand, .maskShift]) && keyCode == kVK_ANSI_4 {
+        if isCommandShift, keyCode == Int64(kVK_ANSI_4) {
             Task { @MainActor [weak self] in
                 self?.onAreaCapture?()
             }
@@ -73,7 +75,7 @@ final class HotkeyManager {
         }
 
         // ⌘⇧5 → Window Capture
-        if flags.contains([.maskCommand, .maskShift]) && keyCode == kVK_ANSI_5 {
+        if isCommandShift, keyCode == Int64(kVK_ANSI_5) {
             Task { @MainActor [weak self] in
                 self?.onWindowCapture?()
             }
@@ -81,7 +83,7 @@ final class HotkeyManager {
         }
 
         // ⌘⇧6 → Fullscreen Capture
-        if flags.contains([.maskCommand, .maskShift]) && keyCode == kVK_ANSI_6 {
+        if isCommandShift, keyCode == Int64(kVK_ANSI_6) {
             Task { @MainActor [weak self] in
                 self?.onFullscreenCapture?()
             }

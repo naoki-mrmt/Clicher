@@ -78,7 +78,8 @@ enum FileNamePattern: String, CaseIterable, Identifiable, Sendable {
                 .replacing("/", with: "-")
                 .replacing(":", with: ".")
         case .sequential:
-            return "Clicher-\(index, format: .number.precision(.integerLength(4)))"
+            let padded = String(format: "%04d", index)
+            return "Clicher-\(padded)"
         case .custom:
             return "Clicher-capture"
         }

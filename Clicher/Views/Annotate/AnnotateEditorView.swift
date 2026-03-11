@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Annotateエディタのメインビュー
 struct AnnotateEditorView: View {
