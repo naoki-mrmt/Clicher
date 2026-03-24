@@ -61,3 +61,6 @@ Pods/
 # Sparkle
 *.xml.sig
 appcast.xml
+
+# Claude Code
+.claude/settings.local.json

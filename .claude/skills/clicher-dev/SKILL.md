@@ -149,7 +149,81 @@ class AreaSelectorView: NSView {
 }
 ```
 
-### 3. Quick Access Overlay
+### 3. キャプチャHUD（⌘⇧A で起動）
+
+```swift
+import AppKit
+import SwiftUI
+
+/// ⌘⇧A で表示されるキャプチャモード選択HUD
+class CaptureHUDPanel: NSPanel {
+    init() {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 200),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        self.level = .floating
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.hasShadow = true
+        self.hidesOnDeactivate = true
+        self.collectionBehavior = [.canJoinAllSpaces, .transient]
+        
+        // SwiftUI View をホスト
+        self.contentView = NSHostingView(rootView: CaptureHUDView(
+            onModeSelected: { [weak self] mode in
+                self?.close()
+                // → CaptureEngine でモード実行
+            }
+        ))
+        
+        // 画面中央に配置
+        if let screen = NSScreen.main {
+            let x = (screen.frame.width - frame.width) / 2
+            let y = (screen.frame.height - frame.height) / 2
+            setFrameOrigin(NSPoint(x: x, y: y))
+        }
+    }
+}
+
+struct CaptureHUDView: View {
+    let onModeSelected: (CaptureMode) -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Clicher")
+                .font(.headline)
+            
+            HStack(spacing: 12) {
+                hudButton("1", icon: "rectangle.dashed", label: "エリア", mode: .area)
+                hudButton("2", icon: "macwindow", label: "ウィンドウ", mode: .window)
+                hudButton("3", icon: "display", label: "全画面", mode: .fullscreen)
+            }
+            // Phase 2-3 のモードは後から追加
+        }
+        .padding(24)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .onKeyPress(.escape) { dismiss(); return .handled }
+    }
+    
+    private func hudButton(_ key: String, icon: String, label: String, mode: CaptureMode) -> some View {
+        Button { onModeSelected(mode) } label: {
+            VStack(spacing: 6) {
+                Image(systemName: icon).font(.title2)
+                Text(label).font(.caption)
+                Text(key).font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(width: 100, height: 80)
+        }
+        .buttonStyle(.plain)
+        .onKeyPress(KeyEquivalent(Character(key))) { onModeSelected(mode); return .handled }
+    }
+}
+```
+
+### 4. Quick Access Overlay
 
 ```swift
 class QuickAccessPanel: NSPanel {
@@ -189,7 +263,7 @@ class QuickAccessPanel: NSPanel {
 }
 ```
 
-### 4. アノテーション ツール Protocol
+### 5. アノテーション ツール Protocol
 
 ```swift
 protocol AnnotationTool {
@@ -223,7 +297,7 @@ enum ToolType: String, CaseIterable {
 }
 ```
 
-### 5. グローバルホットキー登録
+### 6. グローバルホットキー登録
 
 ```swift
 import Carbon
@@ -237,7 +311,7 @@ class HotkeyRegistrar {
         id: UInt32,
         handler: @escaping () -> Void
     ) {
-        var hotKeyID = EventHotKeyID(signature: 0x434C4943, id: id) // "SNAP"
+        var hotKeyID = EventHotKeyID(signature: 0x434C4943, id: id) // "CLIC"
         var eventType = EventTypeSpec(
             eventClass: UInt32(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
@@ -267,7 +341,7 @@ class HotkeyRegistrar {
 }
 ```
 
-### 6. ピクセル化（モザイク）
+### 7. ピクセル化（モザイク）
 
 ```swift
 import CoreImage
@@ -294,7 +368,7 @@ func pixelate(image: CGImage, rect: CGRect, blockSize: Int = 10) -> CGImage? {
 }
 ```
 
-### 7. ブランドプリセット
+### 8. ブランドプリセット
 
 ```swift
 import Foundation
