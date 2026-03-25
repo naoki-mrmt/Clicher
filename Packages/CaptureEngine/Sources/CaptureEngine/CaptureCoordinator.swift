@@ -13,22 +13,67 @@ public final class CaptureCoordinator {
     /// キャプチャ中かどうか
     public private(set) var isCapturing = false
 
+    /// カウントダウン中かどうか
+    public private(set) var isCountingDown = false
+
+    /// カウントダウン残り秒数
+    public private(set) var countdownRemaining = 0
+
     /// 最後のキャプチャ結果
     public private(set) var lastResult: CaptureResult?
 
     /// キャプチャ完了時のコールバック
     public var onCaptureComplete: ((CaptureResult) -> Void)?
 
+    /// カウントダウン開始時のコールバック（UI表示用）
+    public var onCountdownTick: ((Int) -> Void)?
+
     private let captureService: ScreenCaptureServiceProtocol
+    private var countdownOverlay: CountdownOverlay?
 
     public init(captureService: ScreenCaptureServiceProtocol = ScreenCaptureService()) {
         self.captureService = captureService
     }
 
-    /// 指定モードでキャプチャを開始
-    public func startCapture(mode: CaptureMode) {
-        guard !isCapturing else { return }
+    /// 指定モードでキャプチャを開始（タイマー付き）
+    public func startCapture(mode: CaptureMode, delay: TimerDelay = .none) {
+        guard !isCapturing, !isCountingDown else { return }
 
+        if delay != .none {
+            startCountdown(seconds: delay.rawValue) {
+                self.executeCapture(mode: mode)
+            }
+        } else {
+            executeCapture(mode: mode)
+        }
+    }
+
+    // MARK: - Countdown
+
+    private func startCountdown(seconds: Int, completion: @escaping () -> Void) {
+        isCountingDown = true
+        countdownRemaining = seconds
+
+        let overlay = CountdownOverlay()
+        overlay.show(seconds: seconds)
+        countdownOverlay = overlay
+
+        Task {
+            for remaining in stride(from: seconds, through: 1, by: -1) {
+                countdownRemaining = remaining
+                onCountdownTick?(remaining)
+                overlay.update(remaining: remaining)
+                try? await Task.sleep(for: .seconds(1))
+            }
+            countdownRemaining = 0
+            isCountingDown = false
+            overlay.dismiss()
+            countdownOverlay = nil
+            completion()
+        }
+    }
+
+    private func executeCapture(mode: CaptureMode) {
         Task {
             switch mode {
             case .area:
@@ -37,6 +82,8 @@ public final class CaptureCoordinator {
                 await startWindowCapture()
             case .fullscreen:
                 await startFullscreenCapture()
+            case .ocr:
+                await startOCRCapture()
             default:
                 Logger.capture.warning("未実装のキャプチャモード: \(mode.label)")
             }
@@ -128,6 +175,38 @@ public final class CaptureCoordinator {
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("フルスクリーンキャプチャ失敗: \(error)")
+        }
+    }
+
+    // MARK: - OCR Capture
+
+    private func startOCRCapture() async {
+        isCapturing = true
+        defer { isCapturing = false }
+
+        // エリア選択でOCR対象範囲を指定
+        guard let selectedRect = await AreaSelectionOverlay.selectArea() else {
+            Logger.capture.info("OCR エリア選択がキャンセルされました")
+            return
+        }
+
+        do {
+            let content = try await captureService.availableContent()
+            guard let display = content.displays.first else {
+                Logger.capture.error("ディスプレイが見つかりません")
+                return
+            }
+
+            let image = try await captureService.captureArea(rect: selectedRect, display: display)
+            let result = CaptureResult(image: image, mode: .ocr, captureRect: selectedRect)
+            lastResult = result
+
+            // OCR 実行してクリップボードにコピー
+            await OCRService.performOCRAndCopy(from: image)
+
+            onCaptureComplete?(result)
+        } catch {
+            Logger.capture.error("OCR キャプチャ失敗: \(error)")
         }
     }
 }
