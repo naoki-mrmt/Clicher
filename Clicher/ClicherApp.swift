@@ -1,5 +1,10 @@
 import SwiftUI
 import OSLog
+import SharedModels
+import Utilities
+import CaptureEngine
+import AnnotateEngine
+import OverlayUI
 
 @main
 struct ClicherApp: App {
