@@ -1,5 +1,8 @@
 import AppKit
 import OSLog
+import SharedModels
+import Utilities
+import OverlayUI
 
 /// AppKit 統合用デリゲート
 /// グローバルホットキーの登録とキャプチャHUDの管理を担当

@@ -112,6 +112,11 @@
 			);
 			name = Clicher;
 			packageProductDependencies = (
+				AA0002012F70B00000000001 /* SharedModels */,
+				AA0002012F70B00000000002 /* Utilities */,
+				AA0002012F70B00000000003 /* CaptureEngine */,
+				AA0002012F70B00000000004 /* AnnotateEngine */,
+				AA0002012F70B00000000005 /* OverlayUI */,
 			);
 			productName = Clicher;
 			productReference = 799AB0532F60E6C500E34CC6 /* Clicher.app */;
@@ -197,6 +202,13 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 799AB0542F60E6C500E34CC6 /* Products */;
+			packageReferences = (
+				AA0001012F70A00000000001 /* XCLocalSwiftPackageReference "Packages/SharedModels" */,
+				AA0001012F70A00000000002 /* XCLocalSwiftPackageReference "Packages/Utilities" */,
+				AA0001012F70A00000000003 /* XCLocalSwiftPackageReference "Packages/CaptureEngine" */,
+				AA0001012F70A00000000004 /* XCLocalSwiftPackageReference "Packages/AnnotateEngine" */,
+				AA0001012F70A00000000005 /* XCLocalSwiftPackageReference "Packages/OverlayUI" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -563,6 +575,52 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AA0001012F70A00000000001 /* XCLocalSwiftPackageReference "Packages/SharedModels" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SharedModels;
+		};
+		AA0001012F70A00000000002 /* XCLocalSwiftPackageReference "Packages/Utilities" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Utilities;
+		};
+		AA0001012F70A00000000003 /* XCLocalSwiftPackageReference "Packages/CaptureEngine" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/CaptureEngine;
+		};
+		AA0001012F70A00000000004 /* XCLocalSwiftPackageReference "Packages/AnnotateEngine" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/AnnotateEngine;
+		};
+		AA0001012F70A00000000005 /* XCLocalSwiftPackageReference "Packages/OverlayUI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/OverlayUI;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0002012F70B00000000001 /* SharedModels */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SharedModels;
+		};
+		AA0002012F70B00000000002 /* Utilities */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Utilities;
+		};
+		AA0002012F70B00000000003 /* CaptureEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CaptureEngine;
+		};
+		AA0002012F70B00000000004 /* AnnotateEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AnnotateEngine;
+		};
+		AA0002012F70B00000000005 /* OverlayUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = OverlayUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 799AB04B2F60E6C500E34CC6 /* Project object */;
 }
