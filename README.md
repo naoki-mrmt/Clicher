@@ -7,41 +7,35 @@
 
 # Clicher
 
-> A powerful screenshot & annotation tool for macOS, built natively with SwiftUI + AppKit.
+macOS のスクリーンショットツール。キャプチャ、編集、録画、OCR まで全部入り。
 
-macOS 向けのオールインワン スクリーンショットツール。キャプチャ、アノテーション、録画、OCR を 1 つのアプリで。
+## できること
 
----
+- **キャプチャ** — エリア選択 / ウィンドウ / フルスクリーン / スクロール / セルフタイマー
+- **OCR** — 日本語・英語のテキスト認識、QR コード読み取り
+- **録画** — MP4 書き出し、システム音声・マイク対応、GIF 変換
+- **編集** — 矢印、矩形、テキスト、モザイク、ハイライト、ペンシル、クロップなど
+- **背景** — グラデーション / 単色、余白、角丸、影、SNS サイズ合わせ
+- **ブランド** — カラー・ロゴ・フォントのプリセット管理、ウォーターマーク自動挿入
+- **フローティング** — スクショをデスクトップにピン留め、透過度・クリック貫通
+- **履歴** — サムネ一覧から再編集
+- **動画編集** — トリム、画質変更、GIF 化
+- **画像加工** — 結合（横 / 縦）、回転、反転
 
-## Features
+## インストール
 
-| Category | Features |
-|----------|----------|
-| **Capture** | Area, Window, Fullscreen, Scroll (auto-stitch), Self-timer (3/5/10s) |
-| **OCR** | Text recognition (ja/en), QR code & barcode detection |
-| **Recording** | MP4 (H.264, 30fps), system audio + mic, GIF export |
-| **Annotate** | Arrow, Rectangle, Ellipse, Text, Pixelate, Highlight, Counter, Pencil, Crop |
-| **Background** | Solid / Gradient, padding, corner radius, shadow, SNS presets |
-| **Brand** | Color / Logo / Font presets, auto-watermark, `.clipreset` team sharing |
-| **Floating** | Pin screenshots on screen, opacity control, click-through |
-| **History** | Thumbnail gallery, re-edit, Finder integration |
-| **Video Editor** | Trim, quality change, GIF conversion |
-| **Utilities** | Image combine (H/V), rotate, flip |
-
-## Install
-
-### Homebrew (recommended)
+### Homebrew
 
 ```bash
 brew tap naoki-mrmt/clicher
 brew install --cask clicher
 ```
 
-### Download DMG
+### DMG
 
-Download the latest `.dmg` from [Releases](https://github.com/naoki-mrmt/Clicher/releases), open it, and drag `Clicher.app` to `/Applications`.
+[Releases](https://github.com/naoki-mrmt/Clicher/releases) から `.dmg` を落として、`Clicher.app` を `/Applications` に入れる。
 
-### Build from source
+### ソースビルド
 
 ```bash
 git clone https://github.com/naoki-mrmt/Clicher.git
@@ -49,90 +43,64 @@ cd Clicher
 xcodebuild -scheme Clicher -configuration Release build
 ```
 
-## Quick Start
+## 使い方
 
-### 1. Grant permissions
-
-On first launch, Clicher will ask for two permissions:
-
-| Permission | Required for | Where to enable |
-|------------|-------------|-----------------|
-| **Screen Recording** | Capture | System Settings > Privacy & Security > Screen Recording |
-| **Accessibility** | Global hotkey | System Settings > Privacy & Security > Accessibility |
-
-Restart the app after granting permissions.
-
-### 2. Capture
-
-Press **`Cmd+Shift+A`** to open the Capture HUD, then select a mode:
+**`Cmd+Shift+A`** で HUD が出る。数字キーでモード選択。
 
 ```
- Cmd+Shift+A  →  HUD  →  [1] Area  [2] Window  [3] Fullscreen
-                          [4] Scroll [5] OCR    [6] Record
+Cmd+Shift+A → [1] エリア [2] ウィンドウ [3] フルスクリーン
+               [4] スクロール [5] OCR [6] 録画
 ```
 
-### 3. Quick Actions
+撮ったあとオーバーレイが出るので、保存 / コピー / 編集 / ピン留めを選ぶ。
 
-After capture, the Quick Access Overlay appears with:
+### 権限
 
-- **Save** — Save to your configured folder
-- **Copy** — Copy to clipboard
-- **Edit** — Open annotation editor
-- **Pin** — Float on screen
+初回起動時にこの2つを許可する必要あり。設定後はアプリ再起動。
 
-## Architecture
+| 権限 | 何に使う | 場所 |
+|------|---------|------|
+| Screen Recording | キャプチャ全般 | システム設定 → プライバシーとセキュリティ → 画面収録 |
+| Accessibility | `Cmd+Shift+A` ホットキー | システム設定 → プライバシーとセキュリティ → アクセシビリティ |
 
-Clicher is built as a **multi-module SPM project** with strict Swift 6 concurrency.
+## 構成
+
+SPM マルチモジュール。Swift 6 strict concurrency。
 
 ```
-Clicher/
-├── App/                  # Entry point (ClicherApp, AppDelegate)
-├── Packages/
-│   ├── SharedModels      # CaptureMode, BrandPreset, AnnotationItem, ...
-│   ├── Utilities         # Settings, Permissions, Export, History, Hotkey
-│   ├── CaptureEngine     # ScreenCaptureKit, OCR, Recording, Scroll
-│   ├── AnnotateEngine    # Canvas, Renderer, Background Tool, Editor
-│   └── OverlayUI         # HUD, QuickAccess, Settings, Floating, Video Editor
-└── Scripts/              # build-release.sh, create-release.sh
+Packages/
+├── SharedModels     # 型定義
+├── Utilities        # 設定、権限、エクスポート、履歴
+├── CaptureEngine    # キャプチャ、OCR、録画、スクロール
+├── AnnotateEngine   # 描画、背景ツール
+└── OverlayUI        # HUD、オーバーレイ、設定画面
 ```
 
-### Tech Stack
+SwiftUI + AppKit / ScreenCaptureKit / Vision / AVFoundation
 
-- **Swift 6** — strict concurrency with `@Sendable`, `@MainActor`, actors
-- **SwiftUI + AppKit** — SwiftUI for views, AppKit for panels & overlays
-- **ScreenCaptureKit** — modern screen capture API (macOS 14+)
-- **Vision** — OCR and barcode detection
-- **AVFoundation** — recording and video editing
+## 動作環境
 
-## Requirements
+macOS 14 Sonoma 以降。Apple Silicon / Intel 両対応。
 
-- **macOS 14 Sonoma** or later
-- Apple Silicon or Intel
-
-## Development
+## 開発
 
 ```bash
-# Run all package tests (88 tests)
+# テスト
 for pkg in SharedModels Utilities CaptureEngine AnnotateEngine OverlayUI; do
   swift test --package-path "Packages/$pkg"
 done
 
-# Run E2E integration tests (12 tests)
-xcodebuild test -scheme Clicher -configuration Debug \
-  -destination 'platform=macOS' -only-testing:ClicherTests
+# E2E
+xcodebuild test -scheme Clicher -only-testing:ClicherTests
 
-# Build release DMG
+# リリースビルド
 ./Scripts/build-release.sh --skip-notarize
 ```
 
-## Contributing
+## コントリビュート
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (see [commit conventions](.claude/skills/_shared/git/commit-rules.md))
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Fork → ブランチ切る → PR 出す。コミット規約は [commit-rules.md](.claude/skills/_shared/git/commit-rules.md) を参照。
 
-## License
+## ライセンス
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE)
