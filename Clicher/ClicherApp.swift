@@ -17,7 +17,7 @@ struct ClicherApp: App {
     @State private var quickAccessOverlay = QuickAccessOverlay()
     @State private var annotateWindow = AnnotateWindow()
     @State private var floatingManager = FloatingScreenshotManager()
-    @State private var presetStore = BrandPresetStore()
+    @State private var presetStore: BrandPresetStore?
     @State private var isConfigured = false
 
     var body: some Scene {
@@ -63,6 +63,11 @@ struct ClicherApp: App {
         guard !isConfigured else { return }
         isConfigured = true
 
+        // BrandPresetStore を遅延初期化
+        if presetStore == nil {
+            presetStore = BrandPresetStore()
+        }
+
         // キャプチャ完了 → Quick Access Overlay を表示
         captureCoordinator.onCaptureComplete = { result in
             quickAccessOverlay.show(result: result)
@@ -83,7 +88,7 @@ struct ClicherApp: App {
         }
 
         // デフォルトブランドプリセットを Annotate に適用
-        annotateWindow.defaultPreset = presetStore.defaultPreset()
+        annotateWindow.defaultPreset = presetStore?.defaultPreset()
 
         // Annotate 完了 → クリップボードにコピー
         annotateWindow.onComplete = { image in
