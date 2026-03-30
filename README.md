@@ -1,6 +1,6 @@
 # Clicher
 
-macOS 用のスクリーンショット & アノテーションアプリ。CleanShot X 相当の機能を SwiftUI + AppKit でネイティブ実装。
+macOS 用のスクリーンショット & アノテーションアプリ。プロ向けのキャプチャ機能を SwiftUI + AppKit でネイティブ実装。
 
 ## 機能
 

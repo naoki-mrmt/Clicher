@@ -2,7 +2,7 @@
 
 ## プロジェクト概要
 
-ClicherはmacOS用のスクリーンショット＆アノテーションアプリ。CleanShot X相当の機能をSwiftUI + AppKitでネイティブ実装する。
+ClicherはmacOS用のスクリーンショット＆アノテーションアプリ。プロ向けキャプチャ機能をSwiftUI + AppKitでネイティブ実装する。
 
 ## 併用スキル・ルール
 
