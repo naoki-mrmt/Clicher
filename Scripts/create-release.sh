@@ -36,8 +36,13 @@ gh release create "v${VERSION}" \
     --title "Clicher v${VERSION}" \
     --generate-notes
 
-# 4. Homebrew tap 更新
+# 4. Homebrew tap 更新（ダウンロード後の SHA を使用）
 echo "🍺 Homebrew tap を更新中..."
+echo "📥 ダウンロード後の SHA-256 を取得..."
+sleep 5  # GitHub が CDN に反映するまで待つ
+SHA256=$(curl -sL "https://github.com/naoki-mrmt/Clicher/releases/download/v${VERSION}/Clicher-${VERSION}.dmg" | shasum -a 256 | awk '{print $1}')
+echo "SHA-256 (download): ${SHA256}"
+
 TEMP_DIR=$(mktemp -d)
 git clone git@github.com:naoki-mrmt/homebrew-clicher.git "${TEMP_DIR}" 2>/dev/null
 cd "${TEMP_DIR}"
