@@ -82,6 +82,9 @@ struct ClicherApp: App {
             floatingManager.pin(result: result)
         }
 
+        // デフォルトブランドプリセットを Annotate に適用
+        annotateWindow.defaultPreset = presetStore.defaultPreset()
+
         // Annotate 完了 → クリップボードにコピー
         annotateWindow.onComplete = { image in
             ImageExporter.copyToClipboard(image)

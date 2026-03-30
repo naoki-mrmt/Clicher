@@ -13,6 +13,9 @@ public final class AnnotateWindow {
     /// エディタ完了時のコールバック（エクスポートされた画像）
     public var onComplete: ((CGImage) -> Void)?
 
+    /// デフォルトブランドプリセット（設定されている場合、ツールの初期色に適用）
+    public var defaultPreset: BrandPreset?
+
     public init() {}
 
     /// キャプチャ結果からエディタを開く
@@ -20,6 +23,16 @@ public final class AnnotateWindow {
         close()
 
         let document = AnnotateDocument(image: result.image)
+
+        // デフォルトプリセットがあればアノテーションの初期色に適用
+        if let preset = defaultPreset {
+            document.currentStyle.strokeColor = NSColor(
+                red: preset.primaryColor.red,
+                green: preset.primaryColor.green,
+                blue: preset.primaryColor.blue,
+                alpha: preset.primaryColor.alpha
+            )
+        }
 
         var editorView = AnnotateEditorView(document: document)
         editorView.onDismiss = { [weak self] in
@@ -66,7 +79,11 @@ public final class AnnotateWindow {
     }
 
     private func exportAndClose(document: AnnotateDocument) {
-        let image = renderDocument(document)
+        var image = renderDocument(document)
+        // ウォーターマーク挿入
+        if let preset = defaultPreset, let img = image {
+            image = WatermarkRenderer.apply(to: img, preset: preset)
+        }
         if let image {
             onComplete?(image)
         }
