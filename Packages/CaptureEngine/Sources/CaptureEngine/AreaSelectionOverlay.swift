@@ -137,25 +137,15 @@ private final class AreaSelectionView: NSView {
             return
         }
 
+        // macOS スクリーン座標（左下原点）をそのまま返す
+        // SCK 座標への変換は呼び出し側（CaptureCoordinator）で行う
         let screenRect = CGRect(
             x: windowFrame.origin.x + rect.origin.x,
             y: windowFrame.origin.y + rect.origin.y,
             width: rect.width,
             height: rect.height
         )
-
-        // macOS の座標系は左下原点 → ScreenCaptureKit は左上原点
-        if let screenHeight = NSScreen.main?.frame.height {
-            let flippedRect = CGRect(
-                x: screenRect.origin.x,
-                y: screenHeight - screenRect.origin.y - screenRect.height,
-                width: screenRect.width,
-                height: screenRect.height
-            )
-            completionHandler?(flippedRect)
-        } else {
-            completionHandler?(screenRect)
-        }
+        completionHandler?(screenRect)
     }
 
     override func draw(_ dirtyRect: NSRect) {

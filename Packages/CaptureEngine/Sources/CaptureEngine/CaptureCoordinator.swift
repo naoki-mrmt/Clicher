@@ -104,42 +104,73 @@ public final class CaptureCoordinator {
         }
     }
 
+    // MARK: - Lark-style Capture (Mode Bar + Area Selection)
+
+    /// Lark 風キャプチャ: 画面暗転 + モードタブバー → エリア選択 → インライン編集
+    public func startCaptureWithModeBar() {
+        guard !isCapturing, !isCountingDown else { return }
+
+        // モードタブバー + 背景暗転を表示してからエリア選択を開始
+        let overlay = InlineAnnotateOverlay()
+        overlay.onModeChanged = { [weak self] mode in
+            // モード変更時は現在のオーバーレイを閉じて新モードで再開
+            overlay.dismiss()
+            self?.inlineAnnotate = nil
+            self?.executeCapture(mode: mode)
+        }
+        overlay.onCancel = { [weak self] in
+            self?.inlineAnnotate = nil
+            self?.isCapturing = false
+        }
+        inlineAnnotate = overlay
+
+        // 背景暗転 + モードタブを表示
+        overlay.showModeTabOnly(currentMode: .area)
+
+        // デフォルトでエリアキャプチャを開始
+        executeCapture(mode: .area)
+    }
+
     // MARK: - Area Capture
 
     private func startAreaCapture() async {
         isCapturing = true
 
-        // エリア選択オーバーレイを表示して範囲取得
-        guard let selectedRect = await AreaSelectionOverlay.selectArea() else {
+        // エリア選択と SCShareableContent 取得を並行実行（速度改善）
+        async let selectionTask = AreaSelectionOverlay.selectArea()
+        async let contentTask = captureService.availableContent()
+
+        guard let macRect = await selectionTask else {
             Logger.capture.info("エリア選択がキャンセルされました")
+            _ = try? await contentTask
             isCapturing = false
             return
         }
 
         do {
-            let content = try await captureService.availableContent()
+            let content = try await contentTask
             guard let display = content.displays.first else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
                 return
             }
 
-            let image = try await captureService.captureArea(rect: selectedRect, display: display)
-
-            // ScreenCaptureKit 座標（左上原点）→ macOS 座標（左下原点）に変換
+            // macOS 座標（左下原点）→ SCK 座標（左上原点）に変換（キャプチャ用）
             let screenHeight = NSScreen.main?.frame.height ?? CGFloat(display.height)
-            let macRect = CGRect(
-                x: selectedRect.origin.x,
-                y: screenHeight - selectedRect.origin.y - selectedRect.height,
-                width: selectedRect.width,
-                height: selectedRect.height
+            let sckRect = CGRect(
+                x: macRect.origin.x,
+                y: screenHeight - macRect.origin.y - macRect.height,
+                width: macRect.width,
+                height: macRect.height
             )
 
-            // インラインアノテーションを表示
-            let overlay = InlineAnnotateOverlay()
+            let image = try await captureService.captureArea(rect: sckRect, display: display)
+
+            // インラインアノテーションを表示（macOS 座標をそのまま渡す）
+            let overlay = inlineAnnotate ?? InlineAnnotateOverlay()
             overlay.onComplete = { [weak self] editedImage in
                 guard let self else { return }
-                let result = CaptureResult(image: editedImage, mode: .area, captureRect: selectedRect)
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: sckRect)
                 lastResult = result
                 onCaptureComplete?(result)
                 inlineAnnotate = nil
@@ -147,7 +178,7 @@ public final class CaptureCoordinator {
             }
             overlay.onSave = { [weak self] editedImage in
                 guard let self else { return }
-                let result = CaptureResult(image: editedImage, mode: .area, captureRect: selectedRect)
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: sckRect)
                 lastResult = result
                 onCaptureComplete?(result)
                 inlineAnnotate = nil
@@ -158,7 +189,7 @@ public final class CaptureCoordinator {
                 self?.isCapturing = false
             }
             inlineAnnotate = overlay
-            overlay.show(image: image, screenRect: macRect)
+            overlay.show(image: image, screenRect: macRect, showModeTab: true)
 
         } catch {
             Logger.capture.error("エリアキャプチャ失敗: \(error)")
@@ -232,8 +263,8 @@ public final class CaptureCoordinator {
         isCapturing = true
         defer { isCapturing = false }
 
-        // エリア選択でOCR対象範囲を指定
-        guard let selectedRect = await AreaSelectionOverlay.selectArea() else {
+        // エリア選択でOCR対象範囲を指定（macOS 座標で返る）
+        guard let macRect = await AreaSelectionOverlay.selectArea() else {
             Logger.capture.info("OCR エリア選択がキャンセルされました")
             return
         }
@@ -245,8 +276,17 @@ public final class CaptureCoordinator {
                 return
             }
 
-            let image = try await captureService.captureArea(rect: selectedRect, display: display)
-            let result = CaptureResult(image: image, mode: .ocr, captureRect: selectedRect)
+            // macOS → SCK 変換
+            let screenHeight = NSScreen.main?.frame.height ?? CGFloat(display.height)
+            let sckRect = CGRect(
+                x: macRect.origin.x,
+                y: screenHeight - macRect.origin.y - macRect.height,
+                width: macRect.width,
+                height: macRect.height
+            )
+
+            let image = try await captureService.captureArea(rect: sckRect, display: display)
+            let result = CaptureResult(image: image, mode: .ocr, captureRect: sckRect)
             lastResult = result
 
             // OCR 実行してクリップボードにコピー
