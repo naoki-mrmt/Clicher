@@ -9,18 +9,20 @@ import OverlayUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var hudWindow: CaptureHUDWindow?
     private var appState: AppState?
+    private var onCapture: ((CaptureMode) -> Void)?
 
     /// AppState を外部からセット（ClicherApp から呼ばれる）
     func configure(appState: AppState, onCapture: @escaping (CaptureMode) -> Void) {
         self.appState = appState
+        self.onCapture = onCapture
 
         let hud = CaptureHUDWindow(appState: appState)
         hud.onModeSelected = onCapture
         self.hudWindow = hud
 
-        // ⌘⇧A ホットキーのコールバック設定
-        HotkeyManager.shared.onHotkeyPressed = { @MainActor [weak hud] in
-            hud?.toggle()
+        // ⌘⇧A → 即エリアキャプチャ（Lark 風）
+        HotkeyManager.shared.onHotkeyPressed = { @MainActor [weak self] in
+            self?.onCapture?(.area)
         }
     }
 
