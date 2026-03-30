@@ -38,8 +38,8 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
     /// Phase 1 で利用可能なモード
     public var isAvailable: Bool {
         switch self {
-        case .area, .window, .fullscreen: true
-        case .scroll, .ocr, .recording: false
+        case .area, .window, .fullscreen, .ocr: true
+        case .scroll, .recording: false
         }
     }
 
