@@ -16,12 +16,19 @@ public final class ScreenRecordingSession {
     /// 録画時間（秒）
     public private(set) var duration: TimeInterval = 0
 
+    /// マイク音声を録音するか
+    public var capturesMicrophone = false
+
+    /// システム音声を録音するか
+    public var capturesSystemAudio = true
+
     /// 録画完了コールバック（MP4 ファイルの URL）
     public var onComplete: ((URL) -> Void)?
 
     private var stream: SCStream?
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
+    private var audioInput: AVAssetWriterInput?
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
     private var outputURL: URL?
     private var startTime: CMTime?
@@ -73,6 +80,22 @@ public final class ScreenRecordingSession {
         )
 
         writer.add(input)
+
+        // 音声入力セットアップ
+        if capturesSystemAudio || capturesMicrophone {
+            let audioSettings: [String: Any] = [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 48000,
+                AVNumberOfChannelsKey: 2,
+                AVEncoderBitRateKey: 128000,
+            ]
+            let audioWriterInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
+            audioWriterInput.expectsMediaDataInRealTime = true
+            writer.add(audioWriterInput)
+            self.audioInput = audioWriterInput
+            self.unsafeAudioInput = audioWriterInput
+        }
+
         writer.startWriting()
         writer.startSession(atSourceTime: .zero)
 
@@ -89,10 +112,16 @@ public final class ScreenRecordingSession {
         config.showsCursor = true
         config.minimumFrameInterval = CMTime(value: 1, timescale: 30) // 30fps
         config.pixelFormat = kCVPixelFormatType_32BGRA
+        config.capturesAudio = capturesSystemAudio
 
         let streamDelegate = StreamOutputHandler(session: self)
         let captureStream = SCStream(filter: filter, configuration: config, delegate: nil)
         try captureStream.addStreamOutput(streamDelegate, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
+
+        if capturesSystemAudio {
+            try captureStream.addStreamOutput(streamDelegate, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
+        }
+
         try await captureStream.startCapture()
 
         self.stream = captureStream
@@ -126,6 +155,7 @@ public final class ScreenRecordingSession {
 
         // AVAssetWriter 完了
         videoInput?.markAsFinished()
+        audioInput?.markAsFinished()
         await assetWriter?.finishWriting()
 
         if let url = outputURL {
@@ -135,20 +165,30 @@ public final class ScreenRecordingSession {
 
         assetWriter = nil
         videoInput = nil
+        audioInput = nil
         unsafeVideoInput = nil
+        unsafeAudioInput = nil
         adaptor = nil
         startTime = nil
     }
 
-    /// サンプルバッファを受け取って書き込む（SCStreamOutput から nonisolated で呼ばれる）
-    nonisolated func handleSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+    /// 映像サンプルバッファを受け取って書き込む
+    nonisolated func handleVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         nonisolated(unsafe) let input = unsafeVideoInput
+        guard let input, input.isReadyForMoreMediaData else { return }
+        input.append(sampleBuffer)
+    }
+
+    /// 音声サンプルバッファを受け取って書き込む
+    nonisolated func handleAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+        nonisolated(unsafe) let input = unsafeAudioInput
         guard let input, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
     }
 
     /// nonisolated アクセス用の内部ストレージ
     nonisolated(unsafe) private var unsafeVideoInput: AVAssetWriterInput?
+    nonisolated(unsafe) private var unsafeAudioInput: AVAssetWriterInput?
 }
 
 // MARK: - SCStreamOutput Handler
@@ -161,7 +201,13 @@ private final class StreamOutputHandler: NSObject, SCStreamOutput, @unchecked Se
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen else { return }
-        session.handleSampleBuffer(sampleBuffer)
+        switch type {
+        case .screen:
+            session.handleVideoSampleBuffer(sampleBuffer)
+        case .audio:
+            session.handleAudioSampleBuffer(sampleBuffer)
+        @unknown default:
+            break
+        }
     }
 }
