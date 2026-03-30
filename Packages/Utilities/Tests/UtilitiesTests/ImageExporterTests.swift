@@ -4,10 +4,15 @@ import Foundation
 @testable import Utilities
 import SharedModels
 
+/// テストヘルパーで使用するエラー型
+private enum TestHelperError: Error {
+    case imageCreationFailed
+}
+
 @Suite("ImageExporter Tests")
 struct ImageExporterTests {
     /// テスト用のダミー画像を生成
-    private func makeDummyImage() -> CGImage {
+    private func makeDummyImage() throws -> CGImage {
         let width = 100
         let height = 100
         guard let ctx = CGContext(
@@ -19,14 +24,14 @@ struct ImageExporterTests {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
         ), let image = ctx.makeImage() else {
-            fatalError("テスト用画像の生成に失敗")
+            throw TestHelperError.imageCreationFailed
         }
         return image
     }
 
     @Test("saveToFile creates a file at the specified directory")
     func saveToFile() throws {
-        let image = makeDummyImage()
+        let image = try makeDummyImage()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)

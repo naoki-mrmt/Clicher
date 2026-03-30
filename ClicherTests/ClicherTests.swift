@@ -8,28 +8,39 @@ import AppKit
 @testable import AnnotateEngine
 @testable import OverlayUI
 
+/// テストヘルパーで使用するエラー型
+private enum TestHelperError: Error {
+    case contextCreationFailed
+    case imageCreationFailed
+}
+
 // MARK: - E2E Integration Tests
 
 @Suite("E2E Integration Tests")
 struct E2EIntegrationTests {
     /// テスト用ダミー画像
-    private func makeDummyImage(width: Int = 400, height: Int = 300) -> CGImage {
-        let ctx = CGContext(
+    private func makeDummyImage(width: Int = 400, height: Int = 300) throws -> CGImage {
+        guard let ctx = CGContext(
             data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-        )!
+        ) else {
+            throw TestHelperError.contextCreationFailed
+        }
         ctx.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
-        return ctx.makeImage()!
+        guard let image = ctx.makeImage() else {
+            throw TestHelperError.imageCreationFailed
+        }
+        return image
     }
 
     // MARK: - Capture → QuickAccess Pipeline
 
     @Test("CaptureResult → QuickAccessOverlay callback fires")
-    @MainActor func captureToOverlay() {
-        let image = makeDummyImage()
+    @MainActor func captureToOverlay() throws {
+        let image = try makeDummyImage()
         let result = CaptureResult(image: image, mode: .area)
 
         var saveCalled = false
@@ -58,8 +69,8 @@ struct E2EIntegrationTests {
     // MARK: - Capture → Annotate → Export Pipeline
 
     @Test("CaptureResult → AnnotateDocument → items → export")
-    @MainActor func captureToAnnotateExport() {
-        let image = makeDummyImage()
+    @MainActor func captureToAnnotateExport() throws {
+        let image = try makeDummyImage()
         let doc = AnnotateDocument(image: image)
 
         // アノテーション追加
@@ -87,8 +98,8 @@ struct E2EIntegrationTests {
     // MARK: - Annotate + Background Pipeline
 
     @Test("AnnotateDocument + BackgroundTool export pipeline")
-    @MainActor func annotateWithBackground() {
-        let image = makeDummyImage()
+    @MainActor func annotateWithBackground() throws {
+        let image = try makeDummyImage()
         let doc = AnnotateDocument(image: image)
         doc.addItem(AnnotationItem(toolType: .rectangle, startPoint: .zero, endPoint: CGPoint(x: 100, y: 100)))
 
@@ -102,10 +113,9 @@ struct E2EIntegrationTests {
             padding: 40,
             cornerRadius: 12
         )
-        let withBg = BackgroundTool.apply(to: image, config: config)
-        #expect(withBg != nil)
-        #expect(withBg!.width == 400 + 80) // padding * 2
-        #expect(withBg!.height == 300 + 80)
+        let withBg = try #require(BackgroundTool.apply(to: image, config: config))
+        #expect(withBg.width == 400 + 80) // padding * 2
+        #expect(withBg.height == 300 + 80)
     }
 
     // MARK: - OCR Pipeline
@@ -162,7 +172,7 @@ struct E2EIntegrationTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let store = CaptureHistoryStore(directory: dir, maxEntries: 50)
-        let image = makeDummyImage()
+        let image = try makeDummyImage()
 
         store.add(image: image, mode: .area)
         store.add(image: image, mode: .fullscreen)
@@ -176,9 +186,9 @@ struct E2EIntegrationTests {
     // MARK: - Image Utilities Pipeline
 
     @Test("Combine + Rotate pipeline")
-    func combineAndRotate() {
-        let img1 = makeDummyImage(width: 100, height: 50)
-        let img2 = makeDummyImage(width: 100, height: 50)
+    func combineAndRotate() throws {
+        let img1 = try makeDummyImage(width: 100, height: 50)
+        let img2 = try makeDummyImage(width: 100, height: 50)
 
         // 横結合
         guard let combined = ImageUtilities.combine(images: [img1, img2], direction: .horizontal) else {
