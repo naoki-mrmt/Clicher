@@ -16,6 +16,8 @@ struct ClicherApp: App {
     @State private var captureCoordinator = CaptureCoordinator()
     @State private var quickAccessOverlay = QuickAccessOverlay()
     @State private var annotateWindow = AnnotateWindow()
+    @State private var floatingManager = FloatingScreenshotManager()
+    @State private var presetStore = BrandPresetStore()
     @State private var isConfigured = false
 
     var body: some Scene {
@@ -75,6 +77,9 @@ struct ClicherApp: App {
         quickAccessOverlay.onEdit = { result in
             annotateWindow.open(with: result)
         }
+        quickAccessOverlay.onPin = { result in
+            floatingManager.pin(result: result)
+        }
 
         // Annotate 完了 → クリップボードにコピー
         annotateWindow.onComplete = { image in
@@ -94,6 +99,6 @@ struct ClicherApp: App {
         }
 
         appState.selectedCaptureMode = mode
-        captureCoordinator.startCapture(mode: mode)
+        captureCoordinator.startCapture(mode: mode, delay: appState.timerDelay)
     }
 }

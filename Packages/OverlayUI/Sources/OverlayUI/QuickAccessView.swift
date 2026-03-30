@@ -7,6 +7,7 @@ public struct QuickAccessView: View {
     public let onSave: () -> Void
     public let onCopy: () -> Void
     public let onEdit: () -> Void
+    public let onPin: () -> Void
     public let onClose: () -> Void
 
     @State private var isHovering = false
@@ -16,12 +17,14 @@ public struct QuickAccessView: View {
         onSave: @escaping () -> Void,
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void,
+        onPin: @escaping () -> Void = {},
         onClose: @escaping () -> Void
     ) {
         self.result = result
         self.onSave = onSave
         self.onCopy = onCopy
         self.onEdit = onEdit
+        self.onPin = onPin
         self.onClose = onClose
     }
 
@@ -86,6 +89,10 @@ public struct QuickAccessView: View {
 
             actionButton(title: "編集", systemImage: "pencil") {
                 onEdit()
+            }
+
+            actionButton(title: "ピン留め", systemImage: "pin") {
+                onPin()
             }
         }
         .padding(.horizontal, 12)

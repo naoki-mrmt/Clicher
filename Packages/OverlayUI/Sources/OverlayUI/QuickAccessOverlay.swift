@@ -15,6 +15,7 @@ public final class QuickAccessOverlay {
     public var onSave: ((CaptureResult) -> Void)?
     public var onCopy: ((CaptureResult) -> Void)?
     public var onEdit: ((CaptureResult) -> Void)?
+    public var onPin: ((CaptureResult) -> Void)?
 
     public init() {}
 
@@ -34,6 +35,10 @@ public final class QuickAccessOverlay {
             },
             onEdit: { [weak self] in
                 self?.onEdit?(result)
+                self?.dismiss()
+            },
+            onPin: { [weak self] in
+                self?.onPin?(result)
                 self?.dismiss()
             },
             onClose: { [weak self] in
