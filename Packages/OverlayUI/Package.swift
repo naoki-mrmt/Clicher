@@ -10,11 +10,12 @@ let package = Package(
     dependencies: [
         .package(path: "../SharedModels"),
         .package(path: "../Utilities"),
+        .package(path: "../CaptureEngine"),
     ],
     targets: [
         .target(
             name: "OverlayUI",
-            dependencies: ["SharedModels", "Utilities"],
+            dependencies: ["SharedModels", "Utilities", "CaptureEngine"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
