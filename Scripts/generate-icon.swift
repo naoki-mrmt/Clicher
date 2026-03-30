@@ -16,45 +16,58 @@ let kateruFamily = families.first { $0.lowercased().contains("kateru") }
 print("Font family: \(kateruFamily ?? "not found")")
 
 let fontName = kateruFamily ?? "Helvetica"
-guard let font = NSFont(name: fontName, size: CGFloat(masterSize) * 0.18) else {
-    print("ERROR: Could not create font")
-    exit(1)
+
+// マスター画像を CGContext で生成（ピクセル正確）
+func renderIcon(pixels: Int) -> Data? {
+    guard let ctx = CGContext(
+        data: nil, width: pixels, height: pixels,
+        bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+    ) else { return nil }
+
+    let size = CGFloat(pixels)
+    let cornerRadius = size * 0.22
+
+    // 背景: 白の角丸
+    let bgPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size, height: size),
+                        cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+    ctx.addPath(bgPath)
+    ctx.clip()
+    ctx.setFillColor(CGColor.white)
+    ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+
+    // テキスト描画
+    let fontSize = size * 0.18
+    guard let font = NSFont(name: fontName, size: fontSize) else { return nil }
+
+    let text = "Clicher" as NSString
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: NSColor.black,
+    ]
+    let textSize = text.size(withAttributes: attrs)
+
+    // NSGraphicsContext 経由で描画（CGContext 上）
+    let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = nsCtx
+
+    let textPoint = NSPoint(
+        x: (size - textSize.width) / 2,
+        y: (size - textSize.height) / 2 - size * 0.02
+    )
+    text.draw(at: textPoint, withAttributes: attrs)
+    NSGraphicsContext.restoreGraphicsState()
+
+    guard let cgImage = ctx.makeImage() else { return nil }
+    let rep = NSBitmapImageRep(cgImage: cgImage)
+    rep.size = NSSize(width: pixels, height: pixels) // ピクセル = ポイント（@1x）
+    return rep.representation(using: .png, properties: [:])
 }
 
-// マスター画像生成 (1024x1024)
-let imageSize = NSSize(width: masterSize, height: masterSize)
-let masterImage = NSImage(size: imageSize)
-masterImage.lockFocus()
-
-let bgRect = NSRect(origin: .zero, size: imageSize)
-let cornerRadius: CGFloat = CGFloat(masterSize) * 0.22
-let bgPath = NSBezierPath(roundedRect: bgRect, xRadius: cornerRadius, yRadius: cornerRadius)
-bgPath.addClip()
-
-NSColor.white.setFill()
-bgPath.fill()
-
-let text = "Clicher" as NSString
-let attrs: [NSAttributedString.Key: Any] = [
-    .font: font,
-    .foregroundColor: NSColor.black,
-]
-let textSize = text.size(withAttributes: attrs)
-let textPoint = NSPoint(
-    x: (CGFloat(masterSize) - textSize.width) / 2,
-    y: (CGFloat(masterSize) - textSize.height) / 2 - CGFloat(masterSize) * 0.02
-)
-text.draw(at: textPoint, withAttributes: attrs)
-
-masterImage.unlockFocus()
-
-// iconset 作成
-let iconsetPath = "build/AppIcon.iconset"
+// 各サイズを生成
 let iconDir = "Clicher/Assets.xcassets/AppIcon.appiconset"
-try? FileManager.default.removeItem(atPath: iconsetPath)
-try! FileManager.default.createDirectory(atPath: iconsetPath, withIntermediateDirectories: true)
-
-// 各サイズを正しいピクセルサイズで生成
 let specs: [(name: String, pixels: Int)] = [
     ("icon_16x16.png", 16),
     ("icon_16x16@2x.png", 32),
@@ -69,18 +82,17 @@ let specs: [(name: String, pixels: Int)] = [
 ]
 
 for spec in specs {
-    let resized = NSImage(size: NSSize(width: spec.pixels, height: spec.pixels))
-    resized.lockFocus()
-    masterImage.draw(in: NSRect(x: 0, y: 0, width: spec.pixels, height: spec.pixels))
-    resized.unlockFocus()
-
-    guard let tiff = resized.tiffRepresentation,
-          let rep = NSBitmapImageRep(data: tiff),
-          let png = rep.representation(using: .png, properties: [:]) else { continue }
-
-    try! png.write(to: URL(fileURLWithPath: "\(iconsetPath)/\(spec.name)"))
-    try! png.write(to: URL(fileURLWithPath: "\(iconDir)/\(spec.name)"))
+    guard let data = renderIcon(pixels: spec.pixels) else {
+        print("ERROR: Failed to render \(spec.name)")
+        continue
+    }
+    try! data.write(to: URL(fileURLWithPath: "\(iconDir)/\(spec.name)"))
 }
 
-print("Icons generated with correct pixel sizes")
-print("Run: iconutil -c icns \(iconsetPath)")
+// 検証
+for spec in specs {
+    let url = URL(fileURLWithPath: "\(iconDir)/\(spec.name)")
+    if let rep = NSBitmapImageRep(data: try! Data(contentsOf: url)) {
+        print("\(spec.name): \(rep.pixelsWide)x\(rep.pixelsHigh) (expect \(spec.pixels)x\(spec.pixels)) \(rep.pixelsWide == spec.pixels ? "✓" : "✗ WRONG")")
+    }
+}
