@@ -10,11 +10,12 @@ let package = Package(
     dependencies: [
         .package(path: "../SharedModels"),
         .package(path: "../Utilities"),
+        .package(path: "../AnnotateEngine"),
     ],
     targets: [
         .target(
             name: "CaptureEngine",
-            dependencies: ["SharedModels", "Utilities"],
+            dependencies: ["SharedModels", "Utilities", "AnnotateEngine"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
