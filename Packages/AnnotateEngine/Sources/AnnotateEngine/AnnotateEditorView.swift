@@ -7,6 +7,9 @@ public struct AnnotateEditorView: View {
     public var onExport: ((CGImage) -> Void)?
     public var onDismiss: (() -> Void)?
 
+    @State private var backgroundConfig = BackgroundConfig()
+    @State private var isBackgroundEnabled = false
+
     public init(
         document: AnnotateDocument,
         onExport: ((CGImage) -> Void)? = nil,
@@ -32,6 +35,17 @@ public struct AnnotateEditorView: View {
 
                 // キャンバス
                 AnnotateCanvasRepresentable(document: document)
+
+                // 背景設定パネル（右）
+                if isBackgroundEnabled || document.currentTool == .crop {
+                    Divider()
+                    ScrollView {
+                        BackgroundSettingsView(
+                            config: $backgroundConfig,
+                            isEnabled: $isBackgroundEnabled
+                        )
+                    }
+                }
             }
         }
         .frame(minWidth: 640, minHeight: 480)
@@ -83,6 +97,16 @@ public struct AnnotateEditorView: View {
             }
             .disabled(!document.canRedo)
             .keyboardShortcut("z", modifiers: [.command, .shift])
+
+            Divider()
+                .frame(height: 20)
+
+            // 背景設定トグル
+            Toggle(isOn: $isBackgroundEnabled) {
+                Image(systemName: "photo.artframe")
+            }
+            .toggleStyle(.button)
+            .help("背景設定")
 
             Divider()
                 .frame(height: 20)
