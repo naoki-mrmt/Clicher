@@ -1,0 +1,215 @@
+import SwiftUI
+import SharedModels
+import Utilities
+
+/// ブランドプリセット管理画面（設定タブ）
+public struct BrandPresetSettingsView: View {
+    let store: BrandPresetStore
+
+    @State private var presets: [BrandPreset] = []
+    @State private var selectedPreset: BrandPreset?
+    @State private var isEditing = false
+
+    public init(store: BrandPresetStore) {
+        self.store = store
+    }
+
+    public var body: some View {
+        HSplitView {
+            // プリセット一覧（左）
+            presetList
+                .frame(minWidth: 180, maxWidth: 220)
+
+            // 詳細/編集（右）
+            if let preset = selectedPreset {
+                presetDetail(preset)
+            } else {
+                Text("プリセットを選択してください")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .onAppear { presets = store.loadAll() }
+    }
+
+    // MARK: - Preset List
+
+    private var presetList: some View {
+        VStack(spacing: 0) {
+            List(selection: Binding(
+                get: { selectedPreset?.id },
+                set: { id in selectedPreset = presets.first { $0.id == id } }
+            )) {
+                ForEach(presets) { preset in
+                    HStack {
+                        Circle()
+                            .fill(Color(cgColor: preset.primaryColor.cgColor))
+                            .frame(width: 12, height: 12)
+                        Text(preset.name)
+                            .lineLimit(1)
+                        Spacer()
+                        if preset.isDefault {
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                        }
+                    }
+                    .tag(preset.id)
+                }
+            }
+
+            Divider()
+
+            // 追加/削除ボタン
+            HStack {
+                Button {
+                    addPreset()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    if let preset = selectedPreset {
+                        deletePreset(preset)
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedPreset == nil)
+
+                Spacer()
+
+                // インポート
+                Button {
+                    importPreset()
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                }
+                .buttonStyle(.plain)
+                .help("インポート")
+            }
+            .padding(6)
+        }
+    }
+
+    // MARK: - Preset Detail
+
+    private func presetDetail(_ preset: BrandPreset) -> some View {
+        Form {
+            Section("基本情報") {
+                TextField("名前", text: binding(for: preset, keyPath: \.name))
+
+                Toggle("デフォルトプリセット", isOn: binding(for: preset, keyPath: \.isDefault))
+            }
+
+            Section("カラー") {
+                colorRow("プライマリ", color: preset.primaryColor)
+                colorRow("セカンダリ", color: preset.secondaryColor)
+                colorRow("アクセント", color: preset.accentColor)
+            }
+
+            Section("ロゴ") {
+                Picker("位置", selection: binding(for: preset, keyPath: \.logoPosition)) {
+                    ForEach(LogoPosition.allCases) { pos in
+                        Text(pos.label).tag(pos)
+                    }
+                }
+
+                HStack {
+                    Text("不透明度")
+                    Slider(value: binding(for: preset, keyPath: \.logoOpacity), in: 0.1...1.0)
+                    Text("\(Int(preset.logoOpacity * 100))%")
+                        .monospacedDigit()
+                        .frame(width: 40)
+                }
+            }
+
+            Section {
+                HStack {
+                    // エクスポート
+                    Button("エクスポート") {
+                        exportPreset(preset)
+                    }
+
+                    Spacer()
+
+                    // 保存
+                    Button("保存") {
+                        savePreset(preset)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .padding()
+    }
+
+    private func colorRow(_ label: String, color: CodableColor) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Circle()
+                .fill(Color(cgColor: color.cgColor))
+                .frame(width: 20, height: 20)
+                .overlay(Circle().stroke(.quaternary))
+        }
+    }
+
+    // MARK: - Actions
+
+    private func addPreset() {
+        let preset = BrandPreset(name: "新規プリセット \(presets.count + 1)")
+        try? store.save(preset)
+        presets = store.loadAll()
+        selectedPreset = preset
+    }
+
+    private func deletePreset(_ preset: BrandPreset) {
+        try? store.delete(preset)
+        presets = store.loadAll()
+        selectedPreset = nil
+    }
+
+    private func savePreset(_ preset: BrandPreset) {
+        try? store.save(preset)
+        presets = store.loadAll()
+    }
+
+    private func importPreset() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+
+        if panel.runModal() == .OK, let url = panel.url {
+            if let imported = try? store.importFromClipreset(at: url) {
+                presets = store.loadAll()
+                selectedPreset = imported
+            }
+        }
+    }
+
+    private func exportPreset(_ preset: BrandPreset) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(preset.name).clipreset"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            try? store.exportToClipreset(preset, to: url)
+        }
+    }
+
+    // MARK: - Binding Helpers
+
+    private func binding<T>(for preset: BrandPreset, keyPath: WritableKeyPath<BrandPreset, T>) -> Binding<T> {
+        Binding(
+            get: { preset[keyPath: keyPath] },
+            set: { newValue in
+                guard let index = presets.firstIndex(where: { $0.id == preset.id }) else { return }
+                presets[index][keyPath: keyPath] = newValue
+                selectedPreset = presets[index]
+            }
+        )
+    }
+}
