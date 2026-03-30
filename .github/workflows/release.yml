@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -51,16 +51,15 @@ jobs:
       - name: Update Homebrew tap
         env:
           TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        if: env.TAP_TOKEN != ''
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           DMG="build/Clicher-${VERSION}.dmg"
           SHA256=$(shasum -a 256 "${DMG}" | awk '{print $1}')
 
-          # Clone tap repo
           git clone https://x-access-token:${TAP_TOKEN}@github.com/naoki-mrmt/homebrew-clicher.git /tmp/tap
           cd /tmp/tap
 
-          # Update cask
           mkdir -p Casks
           cat > Casks/clicher.rb << CASK
           cask "clicher" do
@@ -84,7 +83,6 @@ jobs:
           end
           CASK
 
-          # Commit and push
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
