@@ -39,7 +39,8 @@ struct ClicherApp: App {
             SettingsView(
                 settings: appSettings,
                 permissionManager: permissionManager,
-                loginItemManager: loginItemManager
+                loginItemManager: loginItemManager,
+                presetStore: presetStore
             )
         }
 

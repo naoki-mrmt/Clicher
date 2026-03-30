@@ -7,15 +7,18 @@ public struct SettingsView: View {
     public let settings: AppSettings
     public let permissionManager: PermissionManager
     public let loginItemManager: LoginItemManager
+    public let presetStore: BrandPresetStore?
 
     public init(
         settings: AppSettings,
         permissionManager: PermissionManager,
-        loginItemManager: LoginItemManager
+        loginItemManager: LoginItemManager,
+        presetStore: BrandPresetStore? = nil
     ) {
         self.settings = settings
         self.permissionManager = permissionManager
         self.loginItemManager = loginItemManager
+        self.presetStore = presetStore
     }
 
     public var body: some View {
@@ -30,12 +33,19 @@ public struct SettingsView: View {
                     Label("キャプチャ", systemImage: "camera")
                 }
 
+            if let presetStore {
+                BrandPresetSettingsView(store: presetStore)
+                    .tabItem {
+                        Label("ブランド", systemImage: "paintpalette")
+                    }
+            }
+
             permissionTab
                 .tabItem {
                     Label("権限", systemImage: "lock.shield")
                 }
         }
-        .frame(width: 480, height: 320)
+        .frame(width: 560, height: 400)
     }
 
     // MARK: - General Tab
