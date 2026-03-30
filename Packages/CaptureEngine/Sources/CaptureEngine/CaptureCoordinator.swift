@@ -37,6 +37,9 @@ public final class CaptureCoordinator {
     /// 画面録画セッション
     public private(set) var recordingSession: ScreenRecordingSession?
 
+    /// インラインアノテーションオーバーレイ
+    public private(set) var inlineAnnotate: InlineAnnotateOverlay?
+
     private let captureService: ScreenCaptureServiceProtocol
     private var countdownOverlay: CountdownOverlay?
 
@@ -105,11 +108,11 @@ public final class CaptureCoordinator {
 
     private func startAreaCapture() async {
         isCapturing = true
-        defer { isCapturing = false }
 
         // エリア選択オーバーレイを表示して範囲取得
         guard let selectedRect = await AreaSelectionOverlay.selectArea() else {
             Logger.capture.info("エリア選択がキャンセルされました")
+            isCapturing = false
             return
         }
 
@@ -117,15 +120,49 @@ public final class CaptureCoordinator {
             let content = try await captureService.availableContent()
             guard let display = content.displays.first else {
                 Logger.capture.error("ディスプレイが見つかりません")
+                isCapturing = false
                 return
             }
 
             let image = try await captureService.captureArea(rect: selectedRect, display: display)
-            let result = CaptureResult(image: image, mode: .area, captureRect: selectedRect)
-            lastResult = result
-            onCaptureComplete?(result)
+
+            // ScreenCaptureKit 座標（左上原点）→ macOS 座標（左下原点）に変換
+            let screenHeight = NSScreen.main?.frame.height ?? CGFloat(display.height)
+            let macRect = CGRect(
+                x: selectedRect.origin.x,
+                y: screenHeight - selectedRect.origin.y - selectedRect.height,
+                width: selectedRect.width,
+                height: selectedRect.height
+            )
+
+            // インラインアノテーションを表示
+            let overlay = InlineAnnotateOverlay()
+            overlay.onComplete = { [weak self] editedImage in
+                guard let self else { return }
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: selectedRect)
+                lastResult = result
+                onCaptureComplete?(result)
+                inlineAnnotate = nil
+                isCapturing = false
+            }
+            overlay.onSave = { [weak self] editedImage in
+                guard let self else { return }
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: selectedRect)
+                lastResult = result
+                onCaptureComplete?(result)
+                inlineAnnotate = nil
+                isCapturing = false
+            }
+            overlay.onCancel = { [weak self] in
+                self?.inlineAnnotate = nil
+                self?.isCapturing = false
+            }
+            inlineAnnotate = overlay
+            overlay.show(image: image, screenRect: macRect)
+
         } catch {
             Logger.capture.error("エリアキャプチャ失敗: \(error)")
+            isCapturing = false
         }
     }
 
