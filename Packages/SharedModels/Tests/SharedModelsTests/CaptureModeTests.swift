@@ -3,10 +3,10 @@ import Testing
 
 @Suite("CaptureMode Tests")
 struct CaptureModeTests {
-    @Test("availableModes returns area, window, fullscreen, ocr")
+    @Test("availableModes returns all cases")
     func availableModes() {
         let modes = CaptureMode.availableModes
-        #expect(modes == [.area, .window, .fullscreen, .ocr])
+        #expect(modes == CaptureMode.allCases)
     }
 
     @Test("all cases have non-empty labels")
@@ -30,17 +30,10 @@ struct CaptureModeTests {
         }
     }
 
-    @Test("scroll, recording are unavailable")
-    func unavailableModes() {
-        #expect(!CaptureMode.scroll.isAvailable)
-        #expect(!CaptureMode.recording.isAvailable)
-    }
-
-    @Test("area, window, fullscreen, ocr are available")
-    func availableModesFlag() {
-        #expect(CaptureMode.area.isAvailable)
-        #expect(CaptureMode.window.isAvailable)
-        #expect(CaptureMode.fullscreen.isAvailable)
-        #expect(CaptureMode.ocr.isAvailable)
+    @Test("all modes are available")
+    func allModesAvailable() {
+        for mode in CaptureMode.allCases {
+            #expect(mode.isAvailable)
+        }
     }
 }

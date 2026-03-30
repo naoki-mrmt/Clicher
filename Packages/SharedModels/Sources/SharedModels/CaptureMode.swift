@@ -35,11 +35,10 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
         "\(rawValue)"
     }
 
-    /// Phase 1 で利用可能なモード
+    /// 利用可能なモード
     public var isAvailable: Bool {
         switch self {
-        case .area, .window, .fullscreen, .ocr: true
-        case .scroll, .recording: false
+        case .area, .window, .fullscreen, .ocr, .scroll, .recording: true
         }
     }
 
