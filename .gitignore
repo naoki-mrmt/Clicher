@@ -64,3 +64,4 @@ appcast.xml
 
 # Claude Code
 .claude/settings.local.json
+font/
