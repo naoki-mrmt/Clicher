@@ -1,0 +1,31 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package tests
+        run: |
+          for pkg in SharedModels Utilities CaptureEngine AnnotateEngine OverlayUI; do
+            echo "=== Testing $pkg ==="
+            swift test --package-path "Packages/$pkg"
+          done
+
+      - name: Build app
+        run: xcodebuild -scheme Clicher -configuration Debug build
+
+      - name: Integration tests
+        run: |
+          xcodebuild test \
+            -scheme Clicher \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -only-testing:ClicherTests

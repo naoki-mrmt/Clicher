@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release archive
+        run: |
+          xcodebuild archive \
+            -scheme Clicher \
+            -configuration Release \
+            -archivePath build/Clicher.xcarchive \
+            -destination "generic/platform=macOS" \
+            CODE_SIGN_IDENTITY="-" \
+            ENABLE_APP_SANDBOX=NO
+
+      - name: Export app
+        run: |
+          mkdir -p build/export
+          cp -R build/Clicher.xcarchive/Products/Applications/Clicher.app build/export/
+
+      - name: Create DMG
+        run: |
+          hdiutil create \
+            -volname "Clicher" \
+            -srcfolder build/export \
+            -ov \
+            -format UDZO \
+            "build/Clicher-${{ steps.version.outputs.version }}.dmg"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Clicher-${{ steps.version.outputs.version }}.dmg
+          generate_release_notes: true
+
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG="build/Clicher-${VERSION}.dmg"
+          SHA256=$(shasum -a 256 "${DMG}" | awk '{print $1}')
+
+          # Clone tap repo
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/naoki-mrmt/homebrew-clicher.git /tmp/tap
+          cd /tmp/tap
+
+          # Update cask
+          mkdir -p Casks
+          cat > Casks/clicher.rb << CASK
+          cask "clicher" do
+            version "${VERSION}"
+            sha256 "${SHA256}"
+
+            url "https://github.com/naoki-mrmt/Clicher/releases/download/v#{version}/Clicher-#{version}.dmg"
+            name "Clicher"
+            desc "Screenshot and annotation tool for macOS"
+            homepage "https://github.com/naoki-mrmt/Clicher"
+
+            depends_on macos: ">= :sonoma"
+
+            app "Clicher.app"
+
+            zap trash: [
+              "~/Library/Application Support/Clicher",
+              "~/Library/Preferences/com.naoki-mrmt.Clicher.plist",
+              "~/Library/Caches/com.naoki-mrmt.Clicher",
+            ]
+          end
+          CASK
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: bump clicher to ${VERSION}" || echo "No changes"
+          git push
