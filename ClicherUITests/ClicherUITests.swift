@@ -1,41 +1,48 @@
-//
-//  ClicherUITests.swift
-//  ClicherUITests
-//
-//  Created by FONXHOUND on 2026/03/11.
-//
-
 import XCTest
 
+/// Clicher E2E UI テスト
+/// アプリを起動して UI 要素の存在と基本操作を検証する
 final class ClicherUITests: XCTestCase {
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
+        app = XCUIApplication()
+        app.launch()
+        // メニューバーアプリなので少し待つ
+        Thread.sleep(forTimeInterval: 1)
     }
 
     override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+        app = nil
     }
+
+    // MARK: - Menu Bar
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
-        let app = XCUIApplication()
-        app.launch()
-
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+    func testMenuBarIconExists() throws {
+        // メニューバーアイコンが表示されている
+        let menuBar = app.menuBars
+        XCTAssertTrue(menuBar.count > 0, "メニューバーが存在する")
     }
+
+    // MARK: - Settings Window
+
+    @MainActor
+    func testSettingsWindowOpens() throws {
+        // ⌘, で設定画面を開く
+        app.typeKey(",", modifierFlags: .command)
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // 設定ウィンドウが存在する
+        let settingsWindow = app.windows.firstMatch
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 3), "設定ウィンドウが開く")
+    }
+
+    // MARK: - Launch Performance
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
