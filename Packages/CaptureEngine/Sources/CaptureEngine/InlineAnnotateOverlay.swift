@@ -5,13 +5,17 @@ import SharedModels
 import Utilities
 import AnnotateEngine
 
-/// インラインアノテーションオーバーレイ
-/// キャプチャ直後に選択範囲上でアノテーション編集を行う（Lark 風）
+/// インラインアノテーションオーバーレイ（Lark 風）
+/// キャプチャ直後に選択範囲上でアノテーション編集を行う
 @MainActor
 public final class InlineAnnotateOverlay {
-    private var window: NSWindow?
+    private var dimWindow: NSWindow?
+    private var canvasWindow: NSWindow?
     private var toolbarWindow: NSPanel?
+    private var modeTabWindow: NSPanel?
     private var document: AnnotateDocument?
+    private var canvasView: AnnotateCanvasView?
+    private var localKeyMonitor: Any?
 
     /// 完了時のコールバック（編集済み画像）
     public var onComplete: ((CGImage) -> Void)?
@@ -22,109 +26,245 @@ public final class InlineAnnotateOverlay {
     /// キャンセル時のコールバック
     public var onCancel: (() -> Void)?
 
+    /// モード変更時のコールバック
+    public var onModeChanged: ((CaptureMode) -> Void)?
+
     public init() {}
+
+    // MARK: - Show
 
     /// キャプチャ画像をインライン編集モードで表示
     /// - Parameters:
     ///   - image: キャプチャされた画像
     ///   - screenRect: 画面上の選択範囲（macOS 座標系、左下原点）
-    public func show(image: CGImage, screenRect: CGRect) {
+    ///   - showModeTab: モードタブバーを表示するか
+    ///   - currentMode: 現在のモード（モードタブのハイライト用）
+    public func show(
+        image: CGImage,
+        screenRect: CGRect,
+        showModeTab: Bool = false,
+        currentMode: CaptureMode = .area
+    ) {
         dismiss()
 
         let doc = AnnotateDocument(image: image)
         self.document = doc
 
-        // キャンバスウィンドウ（選択範囲にぴったり配置）
-        let canvasView = AnnotateCanvasView(
-            frame: NSRect(origin: .zero, size: NSSize(width: screenRect.width, height: screenRect.height))
-        )
-        canvasView.document = doc
+        // 1. 背景暗転
+        showDimWindow()
 
-        let canvasWindow = NSWindow(
+        // 2. キャンバスウィンドウ（選択範囲にぴったり配置）
+        let canvas = AnnotateCanvasView(
+            frame: NSRect(origin: .zero, size: screenRect.size)
+        )
+        canvas.document = doc
+        self.canvasView = canvas
+
+        let cw = NSWindow(
             contentRect: NSRect(origin: screenRect.origin, size: screenRect.size),
             styleMask: .borderless,
             backing: .buffered,
             defer: false
         )
-        canvasWindow.level = .screenSaver
-        canvasWindow.isOpaque = false
-        canvasWindow.backgroundColor = .clear
-        canvasWindow.hasShadow = true
-        canvasWindow.contentView = canvasView
-        canvasWindow.orderFrontRegardless()
-        canvasWindow.makeKey()
-        self.window = canvasWindow
+        cw.level = .screenSaver
+        cw.isOpaque = false
+        cw.backgroundColor = .clear
+        cw.hasShadow = true
+        cw.contentView = canvas
+        cw.orderFrontRegardless()
+        cw.makeKey()
+        self.canvasWindow = cw
 
-        // ツールバーパネル（選択範囲の下に配置）
-        let toolbarView = InlineToolbarView(
-            document: doc,
-            onUndo: { doc.undo(); canvasView.needsDisplay = true },
-            onRedo: { doc.redo(); canvasView.needsDisplay = true },
-            onSave: { [weak self] in self?.handleSave(canvasView: canvasView) },
-            onCancel: { [weak self] in self?.handleCancel() },
-            onDone: { [weak self] in self?.handleDone(canvasView: canvasView) }
-        )
+        // 3. ツールバー（キャンバスの下 or 上に配置）
+        showToolbar(canvasRect: screenRect, document: doc, canvasView: canvas)
 
-        let hostingView = NSHostingView(rootView: toolbarView)
-        let toolbarSize = NSSize(width: max(screenRect.width, 500), height: 44)
-        hostingView.setFrameSize(toolbarSize)
-
-        let toolbarPanel = NSPanel(
-            contentRect: NSRect(
-                origin: NSPoint(
-                    x: screenRect.origin.x + (screenRect.width - toolbarSize.width) / 2,
-                    y: screenRect.origin.y - toolbarSize.height - 8
-                ),
-                size: toolbarSize
-            ),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        toolbarPanel.level = .screenSaver
-        toolbarPanel.isOpaque = false
-        toolbarPanel.backgroundColor = .clear
-        toolbarPanel.hasShadow = true
-        toolbarPanel.contentView = hostingView
-        toolbarPanel.titleVisibility = .hidden
-        toolbarPanel.titlebarAppearsTransparent = true
-        toolbarPanel.orderFrontRegardless()
-        self.toolbarWindow = toolbarPanel
-
-        // Escape キーでキャンセル
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 {
-                self?.handleCancel()
-                return nil
-            }
-            return event
+        // 4. モードタブバー（オプション）
+        if showModeTab {
+            showModeTabBar(currentMode: currentMode)
         }
+
+        // 5. キーボードモニター
+        setupKeyMonitor()
 
         Logger.capture.info("インラインアノテーション開始")
     }
 
     /// 全ウィンドウを閉じる
     public func dismiss() {
-        window?.orderOut(nil)
-        window = nil
+        removeKeyMonitor()
+        dimWindow?.orderOut(nil)
+        dimWindow = nil
+        canvasWindow?.orderOut(nil)
+        canvasWindow = nil
         toolbarWindow?.orderOut(nil)
         toolbarWindow = nil
+        modeTabWindow?.orderOut(nil)
+        modeTabWindow = nil
         document = nil
+        canvasView = nil
+    }
+
+    // MARK: - Dim Window
+
+    private func showDimWindow() {
+        guard let screen = NSScreen.main else { return }
+
+        let dw = NSWindow(
+            contentRect: screen.frame,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        dw.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)
+        dw.isOpaque = false
+        dw.backgroundColor = NSColor.black.withAlphaComponent(0.3)
+        dw.hasShadow = false
+        dw.ignoresMouseEvents = false
+
+        // クリックでキャンセル
+        let clickView = DimClickView { [weak self] in
+            self?.handleCancel()
+        }
+        clickView.frame = dw.contentView?.bounds ?? .zero
+        clickView.autoresizingMask = [.width, .height]
+        dw.contentView?.addSubview(clickView)
+
+        dw.orderFrontRegardless()
+        self.dimWindow = dw
+    }
+
+    // MARK: - Toolbar
+
+    private func showToolbar(canvasRect: CGRect, document: AnnotateDocument, canvasView: AnnotateCanvasView) {
+        let toolbarView = InlineToolbarView(
+            document: document,
+            onUndo: { [weak canvasView] in document.undo(); canvasView?.needsDisplay = true },
+            onRedo: { [weak canvasView] in document.redo(); canvasView?.needsDisplay = true },
+            onSave: { [weak self] in self?.handleSave() },
+            onCancel: { [weak self] in self?.handleCancel() },
+            onDone: { [weak self] in self?.handleDone() }
+        )
+
+        let hostingView = NSHostingView(rootView: toolbarView)
+        let toolbarSize = NSSize(width: max(canvasRect.width, 500), height: 44)
+        hostingView.setFrameSize(toolbarSize)
+
+        // 下にスペースがあれば下、なければ上
+        let spaceBelow = canvasRect.origin.y
+        let toolbarY: CGFloat
+        if spaceBelow >= toolbarSize.height + 16 {
+            toolbarY = canvasRect.origin.y - toolbarSize.height - 8
+        } else {
+            toolbarY = canvasRect.maxY + 8
+        }
+
+        let toolbarX = canvasRect.origin.x + (canvasRect.width - toolbarSize.width) / 2
+
+        let panel = NSPanel(
+            contentRect: NSRect(
+                origin: NSPoint(x: toolbarX, y: toolbarY),
+                size: toolbarSize
+            ),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.contentView = hostingView
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.orderFrontRegardless()
+        self.toolbarWindow = panel
+    }
+
+    // MARK: - Mode Tab Bar
+
+    private func showModeTabBar(currentMode: CaptureMode) {
+        let tabView = ModeTabBarView(
+            selectedMode: currentMode,
+            onModeSelected: { [weak self] mode in
+                self?.onModeChanged?(mode)
+            }
+        )
+
+        let hostingView = NSHostingView(rootView: tabView)
+        hostingView.setFrameSize(hostingView.fittingSize)
+
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: hostingView.fittingSize),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
+        panel.contentView = hostingView
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+
+        // 画面上部中央
+        if let screen = NSScreen.main {
+            let x = screen.frame.midX - panel.frame.width / 2
+            let y = screen.frame.maxY - panel.frame.height - 40
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        panel.orderFrontRegardless()
+        self.modeTabWindow = panel
+    }
+
+    /// モードタブバーのみ表示（エリア選択前の状態）
+    public func showModeTabOnly(currentMode: CaptureMode = .area) {
+        dismiss()
+        showDimWindow()
+        showModeTabBar(currentMode: currentMode)
+        setupKeyMonitor()
+    }
+
+    /// モードタブバーを非表示にする
+    public func hideModeTab() {
+        modeTabWindow?.orderOut(nil)
+        modeTabWindow = nil
+    }
+
+    // MARK: - Key Monitor
+
+    private func setupKeyMonitor() {
+        removeKeyMonitor()
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Escape
+                self?.handleCancel()
+                return nil
+            }
+            return event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let monitor = localKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            localKeyMonitor = nil
+        }
     }
 
     // MARK: - Actions
 
-    private func handleDone(canvasView: AnnotateCanvasView) {
-        guard let image = renderResult(canvasView: canvasView) else { return }
-        // クリップボードにコピー
+    private func handleDone() {
+        guard let image = canvasView?.exportImage() else { return }
         ImageExporter.copyToClipboard(image)
         onComplete?(image)
         dismiss()
         Logger.capture.info("インラインアノテーション完了（コピー）")
     }
 
-    private func handleSave(canvasView: AnnotateCanvasView) {
-        guard let image = renderResult(canvasView: canvasView) else { return }
+    private func handleSave() {
+        guard let image = canvasView?.exportImage() else { return }
         onSave?(image)
         dismiss()
         Logger.capture.info("インラインアノテーション完了（保存）")
@@ -135,23 +275,25 @@ public final class InlineAnnotateOverlay {
         dismiss()
         Logger.capture.info("インラインアノテーションキャンセル")
     }
+}
 
-    private func renderResult(canvasView: AnnotateCanvasView) -> CGImage? {
-        guard let doc = document else { return nil }
-        let width = doc.originalImage.width
-        let height = doc.originalImage.height
+// MARK: - Dim Click View
 
-        guard let ctx = CGContext(
-            data: nil, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-        ) else { return nil }
+private final class DimClickView: NSView {
+    private let onClick: () -> Void
 
-        let size = CGSize(width: width, height: height)
-        ctx.draw(doc.originalImage, in: CGRect(origin: .zero, size: size))
-        AnnotateRenderer.render(items: doc.items, in: ctx, size: size)
-        return ctx.makeImage()
+    init(onClick: @escaping () -> Void) {
+        self.onClick = onClick
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick()
     }
 }
 
@@ -260,7 +402,6 @@ struct InlineToolbarView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary, lineWidth: 0.5))
     }
 
-    /// インライン編集で使うツール（Lark 準拠の並び）
     private var inlineTools: [AnnotationToolType] {
         [.rectangle, .ellipse, .arrow, .pencil, .text, .pixelate, .highlight, .counter]
     }
@@ -270,5 +411,43 @@ struct InlineToolbarView: View {
             get: { Color(nsColor: document.currentStyle.strokeColor) },
             set: { document.currentStyle.strokeColor = NSColor($0) }
         )
+    }
+}
+
+// MARK: - Mode Tab Bar View
+
+struct ModeTabBarView: View {
+    let selectedMode: CaptureMode
+    let onModeSelected: (CaptureMode) -> Void
+
+    private let modes: [(CaptureMode, String)] = [
+        (.area, "スクリーンショット"),
+        (.scroll, "スクロールキャプチャ"),
+        (.recording, "画面収録"),
+        (.ocr, "テキストを認識"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(modes, id: \.0) { mode, label in
+                Button { onModeSelected(mode) } label: {
+                    Text(label)
+                        .font(.system(size: 13, weight: mode == selectedMode ? .semibold : .regular))
+                        .foregroundStyle(mode == selectedMode ? .primary : .secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            mode == selectedMode
+                                ? AnyShapeStyle(.white.opacity(0.15))
+                                : AnyShapeStyle(.clear),
+                            in: RoundedRectangle(cornerRadius: 6)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary, lineWidth: 0.5))
     }
 }

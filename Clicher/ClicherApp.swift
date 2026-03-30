@@ -95,7 +95,11 @@ struct ClicherApp: App {
             ImageExporter.copyToClipboard(image)
         }
 
-        appDelegate.configure(appState: appState, onCapture: handleCapture)
+        appDelegate.configure(
+            appState: appState,
+            captureCoordinator: captureCoordinator,
+            onCapture: handleCapture
+        )
         permissionManager.checkAll()
         Logger.app.info("Clicher 初期化完了")
     }
