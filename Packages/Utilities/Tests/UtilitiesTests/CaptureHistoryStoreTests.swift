@@ -4,6 +4,12 @@ import CoreGraphics
 @testable import Utilities
 import SharedModels
 
+/// テストヘルパーで使用するエラー型
+private enum TestHelperError: Error {
+    case contextCreationFailed
+    case imageCreationFailed
+}
+
 @Suite("CaptureHistoryStore Tests")
 struct CaptureHistoryStoreTests {
     private func makeTempDir() throws -> URL {
@@ -13,14 +19,19 @@ struct CaptureHistoryStoreTests {
         return dir
     }
 
-    private func makeDummyImage() -> CGImage {
-        let ctx = CGContext(
+    private func makeDummyImage() throws -> CGImage {
+        guard let ctx = CGContext(
             data: nil, width: 100, height: 50,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-        )!
-        return ctx.makeImage()!
+        ) else {
+            throw TestHelperError.contextCreationFailed
+        }
+        guard let image = ctx.makeImage() else {
+            throw TestHelperError.imageCreationFailed
+        }
+        return image
     }
 
     @Test("add and retrieve entries")
@@ -29,8 +40,8 @@ struct CaptureHistoryStoreTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let store = CaptureHistoryStore(directory: dir)
-        store.add(image: makeDummyImage(), mode: .area)
-        store.add(image: makeDummyImage(), mode: .fullscreen)
+        store.add(image: try makeDummyImage(), mode: .area)
+        store.add(image: try makeDummyImage(), mode: .fullscreen)
 
         let entries = store.allEntries()
         #expect(entries.count == 2)
@@ -43,9 +54,9 @@ struct CaptureHistoryStoreTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let store = CaptureHistoryStore(directory: dir)
-        store.add(image: makeDummyImage(), mode: .area)
+        store.add(image: try makeDummyImage(), mode: .area)
 
-        let entry = store.allEntries().first!
+        let entry = try #require(store.allEntries().first)
         store.delete(entry)
         #expect(store.allEntries().isEmpty)
     }
@@ -57,7 +68,7 @@ struct CaptureHistoryStoreTests {
 
         let store = CaptureHistoryStore(directory: dir, maxEntries: 3)
         for _ in 0..<5 {
-            store.add(image: makeDummyImage(), mode: .area)
+            store.add(image: try makeDummyImage(), mode: .area)
         }
         #expect(store.allEntries().count == 3)
     }

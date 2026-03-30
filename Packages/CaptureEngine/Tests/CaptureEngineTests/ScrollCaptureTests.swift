@@ -2,24 +2,35 @@ import Testing
 import CoreGraphics
 @testable import CaptureEngine
 
+/// テストヘルパーで使用するエラー型
+private enum TestHelperError: Error {
+    case contextCreationFailed
+    case imageCreationFailed
+}
+
 @Suite("ScrollCapture Tests")
 struct ScrollCaptureTests {
-    private func makeColorImage(width: Int = 200, height: Int = 100, red: CGFloat, green: CGFloat, blue: CGFloat) -> CGImage {
-        let ctx = CGContext(
+    private func makeColorImage(width: Int = 200, height: Int = 100, red: CGFloat, green: CGFloat, blue: CGFloat) throws -> CGImage {
+        guard let ctx = CGContext(
             data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-        )!
+        ) else {
+            throw TestHelperError.contextCreationFailed
+        }
         ctx.setFillColor(CGColor(red: red, green: green, blue: blue, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
-        return ctx.makeImage()!
+        guard let image = ctx.makeImage() else {
+            throw TestHelperError.imageCreationFailed
+        }
+        return image
     }
 
     @Test("ImageStitcher can stitch two images vertically")
-    func stitchTwoImages() {
-        let img1 = makeColorImage(red: 1, green: 0, blue: 0)
-        let img2 = makeColorImage(red: 0, green: 0, blue: 1)
+    func stitchTwoImages() throws {
+        let img1 = try makeColorImage(red: 1, green: 0, blue: 0)
+        let img2 = try makeColorImage(red: 0, green: 0, blue: 1)
         let result = ImageStitcher.stitchVertically(images: [img1, img2], overlap: 0)
         #expect(result != nil)
         if let result {
@@ -29,9 +40,9 @@ struct ScrollCaptureTests {
     }
 
     @Test("ImageStitcher with overlap reduces height")
-    func stitchWithOverlap() {
-        let img1 = makeColorImage(red: 1, green: 0, blue: 0)
-        let img2 = makeColorImage(red: 0, green: 0, blue: 1)
+    func stitchWithOverlap() throws {
+        let img1 = try makeColorImage(red: 1, green: 0, blue: 0)
+        let img2 = try makeColorImage(red: 0, green: 0, blue: 1)
         let result = ImageStitcher.stitchVertically(images: [img1, img2], overlap: 20)
         #expect(result != nil)
         if let result {
@@ -41,8 +52,8 @@ struct ScrollCaptureTests {
     }
 
     @Test("ImageStitcher with single image returns that image")
-    func stitchSingleImage() {
-        let img = makeColorImage(red: 1, green: 0, blue: 0)
+    func stitchSingleImage() throws {
+        let img = try makeColorImage(red: 1, green: 0, blue: 0)
         let result = ImageStitcher.stitchVertically(images: [img], overlap: 0)
         #expect(result != nil)
         if let result {

@@ -3,27 +3,35 @@ import CoreGraphics
 @testable import AnnotateEngine
 import SharedModels
 
+/// テストヘルパーで使用するエラー型
+private enum TestHelperError: Error {
+    case contextCreationFailed
+}
+
 @Suite("AnnotateRenderer Tests")
 struct AnnotateRendererTests {
-    private func makeContext(width: Int = 200, height: Int = 200) -> CGContext {
-        CGContext(
+    private func makeContext(width: Int = 200, height: Int = 200) throws -> CGContext {
+        guard let ctx = CGContext(
             data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-        )!
+        ) else {
+            throw TestHelperError.contextCreationFailed
+        }
+        return ctx
     }
 
     @Test("render empty items does not crash")
-    func renderEmpty() {
-        let ctx = makeContext()
+    func renderEmpty() throws {
+        let ctx = try makeContext()
         AnnotateRenderer.render(items: [], in: ctx, size: CGSize(width: 200, height: 200))
         // No crash = pass
     }
 
     @Test("render each tool type does not crash")
-    func renderAllTools() {
-        let ctx = makeContext()
+    func renderAllTools() throws {
+        let ctx = try makeContext()
         let size = CGSize(width: 200, height: 200)
         let tools: [AnnotationToolType] = [
             .arrow, .rectangle, .ellipse, .line, .text,

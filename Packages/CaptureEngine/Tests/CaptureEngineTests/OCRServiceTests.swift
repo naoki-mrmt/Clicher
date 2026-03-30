@@ -2,21 +2,32 @@ import Testing
 import CoreGraphics
 @testable import CaptureEngine
 
+/// テストヘルパーで使用するエラー型
+private enum TestHelperError: Error {
+    case contextCreationFailed
+    case imageCreationFailed
+}
+
 @Suite("OCRService Tests")
 struct OCRServiceTests {
-    private func makeDummyImage() -> CGImage {
-        let ctx = CGContext(
+    private func makeDummyImage() throws -> CGImage {
+        guard let ctx = CGContext(
             data: nil, width: 200, height: 100,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-        )!
-        return ctx.makeImage()!
+        ) else {
+            throw TestHelperError.contextCreationFailed
+        }
+        guard let image = ctx.makeImage() else {
+            throw TestHelperError.imageCreationFailed
+        }
+        return image
     }
 
     @Test("recognizeText returns empty for blank image")
     func recognizeBlank() async throws {
-        let image = makeDummyImage()
+        let image = try makeDummyImage()
         let result = try await OCRService.recognizeText(from: image)
         // Blank image should return empty or minimal text
         #expect(result != nil)
@@ -24,7 +35,7 @@ struct OCRServiceTests {
 
     @Test("detectBarcodes returns empty for blank image")
     func detectBarcodesBlank() async throws {
-        let image = makeDummyImage()
+        let image = try makeDummyImage()
         let codes = try await OCRService.detectBarcodes(from: image)
         #expect(codes.isEmpty)
     }
