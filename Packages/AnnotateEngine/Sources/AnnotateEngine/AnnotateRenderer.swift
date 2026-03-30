@@ -157,16 +157,16 @@ public enum AnnotateRenderer {
         let nsString = item.text as NSString
         let size = nsString.size(withAttributes: attributes)
 
-        // Core Graphics は左下原点なので y 軸を調整
+        // isFlipped=true の座標系でテキストを描画
         let drawPoint = CGPoint(
             x: item.startPoint.x,
-            y: item.startPoint.y - size.height
+            y: item.startPoint.y
         )
 
-        // NSGraphicsContext 経由で描画
+        // NSGraphicsContext 経由で描画（flipped=true で座標系を合わせる）
         NSGraphicsContext.saveGraphicsState()
         do {
-            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
             NSGraphicsContext.current = nsCtx
             nsString.draw(at: drawPoint, withAttributes: attributes)
         }
@@ -239,7 +239,7 @@ public enum AnnotateRenderer {
 
         NSGraphicsContext.saveGraphicsState()
         do {
-            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
             NSGraphicsContext.current = nsCtx
             text.draw(at: drawPoint, withAttributes: attributes)
         }

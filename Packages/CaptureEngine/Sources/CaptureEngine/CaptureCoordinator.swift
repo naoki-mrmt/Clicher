@@ -109,14 +109,17 @@ public final class CaptureCoordinator {
     /// Lark 風キャプチャ: 画面暗転 + モードタブバー → エリア選択 → インライン編集
     public func startCaptureWithModeBar() {
         guard !isCapturing, !isCountingDown else { return }
+        isCapturing = true
 
         // モードタブバー + 背景暗転を表示してからエリア選択を開始
         let overlay = InlineAnnotateOverlay()
         overlay.onModeChanged = { [weak self] mode in
+            guard let self else { return }
             // モード変更時は現在のオーバーレイを閉じて新モードで再開
             overlay.dismiss()
-            self?.inlineAnnotate = nil
-            self?.executeCapture(mode: mode)
+            inlineAnnotate = nil
+            isCapturing = false
+            startCapture(mode: mode)
         }
         overlay.onCancel = { [weak self] in
             self?.inlineAnnotate = nil
@@ -128,6 +131,7 @@ public final class CaptureCoordinator {
         overlay.showModeTabOnly(currentMode: .area)
 
         // デフォルトでエリアキャプチャを開始
+        isCapturing = false // executeCapture 内で再設定される
         executeCapture(mode: .area)
     }
 
