@@ -56,7 +56,7 @@ public final class InlineAnnotateOverlay {
         canvas.document = doc
         self.canvasView = canvas
 
-        let cw = NSWindow(
+        let cw = KeyableBorderlessWindow(
             contentRect: NSRect(origin: screenRect.origin, size: screenRect.size),
             styleMask: .borderless,
             backing: .buffered,
@@ -68,6 +68,7 @@ public final class InlineAnnotateOverlay {
         cw.hasShadow = true
         cw.contentView = canvas
         cw.orderFrontRegardless()
+        cw.makeKey()
         self.canvasWindow = cw
 
         // 3. モードタブバーを非表示（エリア選択完了後はツールバーのみ）
@@ -113,15 +114,7 @@ public final class InlineAnnotateOverlay {
         dw.isOpaque = false
         dw.backgroundColor = NSColor.black.withAlphaComponent(0.3)
         dw.hasShadow = false
-        dw.ignoresMouseEvents = false
-
-        // クリックでキャンセル
-        let clickView = DimClickView { [weak self] in
-            self?.handleCancel()
-        }
-        clickView.frame = dw.contentView?.bounds ?? .zero
-        clickView.autoresizingMask = [.width, .height]
-        dw.contentView?.addSubview(clickView)
+        dw.ignoresMouseEvents = true // キャンバスへのクリックを通す
 
         dw.orderFrontRegardless()
         self.dimWindow = dw
@@ -304,6 +297,14 @@ private final class DimClickView: NSView {
     override func mouseDown(with event: NSEvent) {
         onClick()
     }
+}
+
+// MARK: - Keyable Borderless Window
+
+/// borderless でもキーボード入力を受け付ける NSWindow サブクラス
+private final class KeyableBorderlessWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }
 
 // MARK: - Inline Toolbar View
