@@ -16,6 +16,7 @@ public final class InlineAnnotateOverlay {
     private var document: AnnotateDocument?
     private var canvasView: AnnotateCanvasView?
     private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
 
     /// 完了時のコールバック（編集済み画像）
     public var onComplete: ((CGImage) -> Void)?
@@ -72,7 +73,6 @@ public final class InlineAnnotateOverlay {
         cw.hasShadow = true
         cw.contentView = canvas
         cw.orderFrontRegardless()
-        cw.makeKey()
         self.canvasWindow = cw
 
         // 3. ツールバー（キャンバスの下 or 上に配置）
@@ -146,10 +146,12 @@ public final class InlineAnnotateOverlay {
         )
 
         let hostingView = NSHostingView(rootView: toolbarView)
-        let toolbarSize = NSSize(width: max(canvasRect.width, 500), height: 44)
+        let fittingSize = hostingView.fittingSize
+        let toolbarSize = NSSize(width: max(fittingSize.width, 480), height: fittingSize.height)
         hostingView.setFrameSize(toolbarSize)
 
-        // 下にスペースがあれば下、なければ上
+        // macOS 座標（左下原点）: origin.y が小さい = 画面下部
+        // 下にスペースがあれば下に、なければ上に配置
         let spaceBelow = canvasRect.origin.y
         let toolbarY: CGFloat
         if spaceBelow >= toolbarSize.height + 16 {
@@ -158,7 +160,8 @@ public final class InlineAnnotateOverlay {
             toolbarY = canvasRect.maxY + 8
         }
 
-        let toolbarX = canvasRect.origin.x + (canvasRect.width - toolbarSize.width) / 2
+        // キャンバスの中央に揃える
+        let toolbarX = canvasRect.midX - toolbarSize.width / 2
 
         let panel = NSPanel(
             contentRect: NSRect(
@@ -173,6 +176,7 @@ public final class InlineAnnotateOverlay {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
         panel.contentView = hostingView
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
@@ -237,6 +241,7 @@ public final class InlineAnnotateOverlay {
 
     private func setupKeyMonitor() {
         removeKeyMonitor()
+        // ローカルモニター（アプリがアクティブ時）
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Escape
                 self?.handleCancel()
@@ -244,12 +249,22 @@ public final class InlineAnnotateOverlay {
             }
             return event
         }
+        // グローバルモニター（アプリが非アクティブ時にも Esc を捕捉）
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {
+                self?.handleCancel()
+            }
+        }
     }
 
     private func removeKeyMonitor() {
         if let monitor = localKeyMonitor {
             NSEvent.removeMonitor(monitor)
             localKeyMonitor = nil
+        }
+        if let monitor = globalKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            globalKeyMonitor = nil
         }
     }
 
