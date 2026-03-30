@@ -33,16 +33,21 @@ public final class AnnotateCanvasView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext,
               let document else { return }
 
-        // 背景（元画像）
-        let imageRect = CGRect(origin: .zero, size: bounds.size)
-        ctx.draw(document.originalImage, in: imageRect)
+        let size = bounds.size
 
-        // 確定済みアノテーション
-        AnnotateRenderer.render(items: document.items, in: ctx, size: bounds.size)
+        // 背景（元画像）— isFlipped=true の CGContext で CGImage を正しく描画するためフリップ
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: size.height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
+        ctx.restoreGState()
+
+        // 確定済みアノテーション（isFlipped 座標系でそのまま描画）
+        AnnotateRenderer.render(items: document.items, in: ctx, size: size)
 
         // 描画中の一時アイテム
         if let activeItem {
-            AnnotateRenderer.render(item: activeItem, in: ctx, size: bounds.size)
+            AnnotateRenderer.render(item: activeItem, in: ctx, size: size)
         }
     }
 

@@ -189,7 +189,7 @@ public final class CaptureCoordinator {
                 self?.isCapturing = false
             }
             inlineAnnotate = overlay
-            overlay.show(image: image, screenRect: macRect, showModeTab: true)
+            overlay.show(image: image, screenRect: macRect)
 
         } catch {
             Logger.capture.error("エリアキャプチャ失敗: \(error)")
