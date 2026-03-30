@@ -40,12 +40,7 @@ public final class InlineAnnotateOverlay {
     ///   - screenRect: 画面上の選択範囲（macOS 座標系、左下原点）
     ///   - showModeTab: モードタブバーを表示するか
     ///   - currentMode: 現在のモード（モードタブのハイライト用）
-    public func show(
-        image: CGImage,
-        screenRect: CGRect,
-        showModeTab: Bool = false,
-        currentMode: CaptureMode = .area
-    ) {
+    public func show(image: CGImage, screenRect: CGRect) {
         dismiss()
 
         let doc = AnnotateDocument(image: image)
@@ -75,13 +70,12 @@ public final class InlineAnnotateOverlay {
         cw.orderFrontRegardless()
         self.canvasWindow = cw
 
-        // 3. ツールバー（キャンバスの下 or 上に配置）
-        showToolbar(canvasRect: screenRect, document: doc, canvasView: canvas)
+        // 3. モードタブバーを非表示（エリア選択完了後はツールバーのみ）
+        modeTabWindow?.orderOut(nil)
+        modeTabWindow = nil
 
-        // 4. モードタブバー（オプション）
-        if showModeTab {
-            showModeTabBar(currentMode: currentMode)
-        }
+        // 4. ツールバー（キャンバスの下 or 上に配置）
+        showToolbar(canvasRect: screenRect, document: doc, canvasView: canvas)
 
         // 5. キーボードモニター
         setupKeyMonitor()
