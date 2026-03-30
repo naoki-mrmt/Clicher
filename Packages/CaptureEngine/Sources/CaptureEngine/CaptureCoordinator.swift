@@ -28,6 +28,15 @@ public final class CaptureCoordinator {
     /// カウントダウン開始時のコールバック（UI表示用）
     public var onCountdownTick: ((Int) -> Void)?
 
+    /// 録画中かどうか
+    public private(set) var isRecording = false
+
+    /// スクロールキャプチャセッション
+    public private(set) var scrollSession: ScrollCaptureSession?
+
+    /// 画面録画セッション
+    public private(set) var recordingSession: ScreenRecordingSession?
+
     private let captureService: ScreenCaptureServiceProtocol
     private var countdownOverlay: CountdownOverlay?
 
@@ -84,8 +93,10 @@ public final class CaptureCoordinator {
                 await startFullscreenCapture()
             case .ocr:
                 await startOCRCapture()
-            default:
-                Logger.capture.warning("未実装のキャプチャモード: \(mode.label)")
+            case .scroll:
+                await startScrollCapture()
+            case .recording:
+                await startRecording()
             }
         }
     }
@@ -208,5 +219,68 @@ public final class CaptureCoordinator {
         } catch {
             Logger.capture.error("OCR キャプチャ失敗: \(error)")
         }
+    }
+
+    // MARK: - Scroll Capture
+
+    private func startScrollCapture() async {
+        isCapturing = true
+
+        let session = ScrollCaptureSession(captureService: captureService)
+        session.onComplete = { [weak self] image in
+            guard let self else { return }
+            let result = CaptureResult(image: image, mode: .scroll)
+            lastResult = result
+            onCaptureComplete?(result)
+            isCapturing = false
+        }
+        scrollSession = session
+        await session.start()
+    }
+
+    /// スクロールキャプチャの追加フレームを取得
+    public func captureScrollFrame() async {
+        await scrollSession?.captureFrame()
+    }
+
+    /// スクロールキャプチャを完了
+    public func finishScrollCapture() {
+        _ = scrollSession?.finish()
+        scrollSession = nil
+    }
+
+    /// スクロールキャプチャをキャンセル
+    public func cancelScrollCapture() {
+        scrollSession?.cancel()
+        scrollSession = nil
+        isCapturing = false
+    }
+
+    // MARK: - Screen Recording
+
+    private func startRecording() async {
+        isRecording = true
+
+        let session = ScreenRecordingSession()
+        session.onComplete = { [weak self] url in
+            Logger.capture.info("録画ファイル: \(url.path)")
+            self?.isRecording = false
+        }
+        recordingSession = session
+
+        do {
+            try await session.start()
+        } catch {
+            Logger.capture.error("録画開始失敗: \(error)")
+            isRecording = false
+            recordingSession = nil
+        }
+    }
+
+    /// 録画を停止
+    public func stopRecording() async {
+        await recordingSession?.stop()
+        recordingSession = nil
+        isRecording = false
     }
 }
