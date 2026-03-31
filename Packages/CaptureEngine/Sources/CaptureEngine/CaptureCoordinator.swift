@@ -139,6 +139,9 @@ public final class CaptureCoordinator {
     private func startAreaCapture() async {
         isCapturing = true
 
+        // エリア選択中は dim を隠す（AreaSelectionOverlay が独自に暗転するため二重を防ぐ）
+        inlineAnnotate?.hideDim()
+
         // エリア選択と SCShareableContent 取得を並行実行（速度改善）
         async let selectionTask = AreaSelectionOverlay.selectArea()
         async let contentTask = captureService.availableContent()
@@ -196,6 +199,8 @@ public final class CaptureCoordinator {
 
         } catch {
             Logger.capture.error("エリアキャプチャ失敗: \(error)")
+            inlineAnnotate?.dismiss()
+            inlineAnnotate = nil
             isCapturing = false
         }
     }

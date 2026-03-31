@@ -31,8 +31,15 @@ public final class ScreenRecordingSession {
     private var audioInput: AVAssetWriterInput?
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
     private var outputURL: URL?
-    private var startTime: CMTime?
     private var durationTimer: Task<Void, Never>?
+    /// StreamOutputHandler の強参照を保持（SCStream は delegate を弱参照するため）
+    private var streamOutputHandler: StreamOutputHandler?
+
+    /// バックグラウンドスレッドからの書き込みを保護するロック
+    private let writeLock = NSLock()
+    /// ロック保護下の書き込み用入力（バックグラウンドスレッドから安全にアクセス）
+    nonisolated(unsafe) private var lockedVideoInput: AVAssetWriterInput?
+    nonisolated(unsafe) private var lockedAudioInput: AVAssetWriterInput?
 
     public init() {}
 
@@ -93,7 +100,6 @@ public final class ScreenRecordingSession {
             audioWriterInput.expectsMediaDataInRealTime = true
             writer.add(audioWriterInput)
             self.audioInput = audioWriterInput
-            self.unsafeAudioInput = audioWriterInput
         }
 
         writer.startWriting()
@@ -101,8 +107,10 @@ public final class ScreenRecordingSession {
 
         self.assetWriter = writer
         self.videoInput = input
-        self.unsafeVideoInput = input
         self.adaptor = pixelBufferAdaptor
+
+        // ロック保護下の参照を設定（同期コンテキストで実行）
+        setLockedInputs(video: input, audio: audioInput)
 
         // SCStream セットアップ
         let filter = SCContentFilter(display: targetDisplay, excludingWindows: [])
@@ -114,12 +122,13 @@ public final class ScreenRecordingSession {
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.capturesAudio = capturesSystemAudio
 
-        let streamDelegate = StreamOutputHandler(session: self)
-        let captureStream = SCStream(filter: filter, configuration: config, delegate: nil)
-        try captureStream.addStreamOutput(streamDelegate, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
+        let outputHandler = StreamOutputHandler(session: self)
+        self.streamOutputHandler = outputHandler
+        let captureStream = SCStream(filter: filter, configuration: config, delegate: outputHandler)
+        try captureStream.addStreamOutput(outputHandler, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
 
         if capturesSystemAudio {
-            try captureStream.addStreamOutput(streamDelegate, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
+            try captureStream.addStreamOutput(outputHandler, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
         }
 
         try await captureStream.startCapture()
@@ -153,6 +162,9 @@ public final class ScreenRecordingSession {
         }
         stream = nil
 
+        // バックグラウンドスレッドからの書き込みを停止（同期コンテキストで実行）
+        setLockedInputs(video: nil, audio: nil)
+
         // AVAssetWriter 完了
         videoInput?.markAsFinished()
         audioInput?.markAsFinished()
@@ -166,34 +178,38 @@ public final class ScreenRecordingSession {
         assetWriter = nil
         videoInput = nil
         audioInput = nil
-        unsafeVideoInput = nil
-        unsafeAudioInput = nil
         adaptor = nil
-        startTime = nil
+        streamOutputHandler = nil
     }
 
-    /// 映像サンプルバッファを受け取って書き込む
+    /// ロック保護下の入力参照を設定（@MainActor の同期コンテキストから呼ぶ）
+    private nonisolated func setLockedInputs(video: AVAssetWriterInput?, audio: AVAssetWriterInput?) {
+        writeLock.lock()
+        lockedVideoInput = video
+        lockedAudioInput = audio
+        writeLock.unlock()
+    }
+
+    /// 映像サンプルバッファを受け取って書き込む（バックグラウンドスレッドから呼ばれる）
     nonisolated func handleVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
-        nonisolated(unsafe) let input = unsafeVideoInput
-        guard let input, input.isReadyForMoreMediaData else { return }
+        writeLock.lock()
+        defer { writeLock.unlock() }
+        guard let input = lockedVideoInput, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
     }
 
-    /// 音声サンプルバッファを受け取って書き込む
+    /// 音声サンプルバッファを受け取って書き込む（バックグラウンドスレッドから呼ばれる）
     nonisolated func handleAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
-        nonisolated(unsafe) let input = unsafeAudioInput
-        guard let input, input.isReadyForMoreMediaData else { return }
+        writeLock.lock()
+        defer { writeLock.unlock() }
+        guard let input = lockedAudioInput, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
     }
-
-    /// nonisolated アクセス用の内部ストレージ
-    nonisolated(unsafe) private var unsafeVideoInput: AVAssetWriterInput?
-    nonisolated(unsafe) private var unsafeAudioInput: AVAssetWriterInput?
 }
 
 // MARK: - SCStreamOutput Handler
 
-private final class StreamOutputHandler: NSObject, SCStreamOutput, @unchecked Sendable {
+private final class StreamOutputHandler: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     private let session: ScreenRecordingSession
 
     init(session: ScreenRecordingSession) {
