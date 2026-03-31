@@ -41,13 +41,24 @@ public final class InlineAnnotateOverlay {
     ///   - showModeTab: モードタブバーを表示するか
     ///   - currentMode: 現在のモード（モードタブのハイライト用）
     public func show(image: CGImage, screenRect: CGRect) {
-        dismiss()
+        // 既存のキャンバス/ツールバーのみクリア（dim は維持）
+        canvasWindow?.orderOut(nil)
+        canvasWindow = nil
+        toolbarWindow?.orderOut(nil)
+        toolbarWindow = nil
+        modeTabWindow?.orderOut(nil)
+        modeTabWindow = nil
+        document = nil
+        canvasView = nil
+        removeKeyMonitor()
 
         let doc = AnnotateDocument(image: image)
         self.document = doc
 
-        // 1. 背景暗転
-        showDimWindow()
+        // 1. 背景暗転（まだなければ作成）
+        if dimWindow == nil {
+            showDimWindow()
+        }
 
         // 2. キャンバスウィンドウ（選択範囲にぴったり配置）
         let canvas = AnnotateCanvasView(
