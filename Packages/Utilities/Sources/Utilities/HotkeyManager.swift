@@ -4,6 +4,7 @@ import OSLog
 
 /// グローバルホットキー管理
 /// `CGEvent.tapCreate` ベースで ⌘⇧A をシステム全体で監視する
+@MainActor
 public final class HotkeyManager: @unchecked Sendable {
     public static let shared = HotkeyManager()
 
@@ -13,6 +14,10 @@ public final class HotkeyManager: @unchecked Sendable {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
+    /// CGEventTap callback からスレッド安全にアクセスするための参照
+    /// callback は C function pointer でキャプチャ不可のため static 経由
+    nonisolated(unsafe) private static var sharedEventTap: CFMachPort?
+
     private init() {}
 
     /// ホットキーの登録
@@ -21,18 +26,18 @@ public final class HotkeyManager: @unchecked Sendable {
 
         let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
 
-        // C function pointer — キャプチャ不可のためstatic経由でself参照
+        // C function pointer — キャプチャ不可のため static 経由でアクセス
         let callback: CGEventTapCallBack = { _, type, event, _ in
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                 // タップが無効化された場合は再有効化
-                if let tap = HotkeyManager.shared.eventTap {
+                if let tap = HotkeyManager.sharedEventTap {
                     CGEvent.tapEnable(tap: tap, enable: true)
                 }
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             guard type == .keyDown else {
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
@@ -51,7 +56,7 @@ public final class HotkeyManager: @unchecked Sendable {
                 return nil
             }
 
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         eventTap = CGEvent.tapCreate(
@@ -68,6 +73,7 @@ public final class HotkeyManager: @unchecked Sendable {
             return
         }
 
+        HotkeyManager.sharedEventTap = eventTap
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
@@ -85,6 +91,7 @@ public final class HotkeyManager: @unchecked Sendable {
         }
         eventTap = nil
         runLoopSource = nil
+        HotkeyManager.sharedEventTap = nil
         Logger.hotkey.info("ホットキーを解除しました")
     }
 }
