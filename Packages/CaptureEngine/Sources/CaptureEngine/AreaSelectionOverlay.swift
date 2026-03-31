@@ -155,21 +155,39 @@ private final class AreaSelectionView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        // 背景を薄暗く
-        NSColor.black.withAlphaComponent(0.2).setFill()
-        dirtyRect.fill()
+        // 背景を暗くする（Lark 風）
+        NSColor.black.withAlphaComponent(0.4).setFill()
+        bounds.fill()
 
         guard let rect = selectionRect else { return }
 
-        // 選択範囲を透明にクリア
+        // 選択範囲を完全にクリア（明るく見える）
         NSColor.clear.setFill()
         rect.fill(using: .copy)
 
-        // 選択範囲の枠線
-        NSColor.white.setStroke()
+        // 選択範囲の枠線（水色、2px）
+        NSColor.systemBlue.setStroke()
         let path = NSBezierPath(rect: rect)
-        path.lineWidth = 1.0
+        path.lineWidth = 2.0
         path.stroke()
+
+        // 四隅にハンドル
+        let handleSize: CGFloat = 6
+        NSColor.white.setFill()
+        for point in [
+            CGPoint(x: rect.minX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.minY),
+            CGPoint(x: rect.minX, y: rect.maxY),
+            CGPoint(x: rect.maxX, y: rect.maxY),
+        ] {
+            let handleRect = NSRect(
+                x: point.x - handleSize / 2,
+                y: point.y - handleSize / 2,
+                width: handleSize,
+                height: handleSize
+            )
+            NSBezierPath(ovalIn: handleRect).fill()
+        }
 
         // サイズ表示
         drawSizeLabel(for: rect)
