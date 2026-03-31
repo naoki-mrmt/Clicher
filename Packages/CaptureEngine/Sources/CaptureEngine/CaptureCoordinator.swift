@@ -304,6 +304,10 @@ public final class CaptureCoordinator {
 
     // MARK: - Scroll Capture
 
+    /// スクロールキャプチャ操作 UI 表示のコールバック
+    /// App 層で ScrollCaptureControls を表示するために使う
+    public var onScrollCaptureStarted: (() -> Void)?
+
     private func startScrollCapture() async {
         isCapturing = true
 
@@ -317,6 +321,11 @@ public final class CaptureCoordinator {
         }
         scrollSession = session
         await session.start()
+
+        // 初回フレーム取得後に操作 UI を表示
+        if session.isCapturing {
+            onScrollCaptureStarted?()
+        }
     }
 
     /// スクロールキャプチャの追加フレームを取得
