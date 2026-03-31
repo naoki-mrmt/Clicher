@@ -256,9 +256,33 @@ public enum AnnotateRenderer {
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
 
-        ctx.move(to: item.points[0])
-        for i in 1..<item.points.count {
-            ctx.addLine(to: item.points[i])
+        let pts = item.points
+
+        if pts.count == 2 {
+            ctx.move(to: pts[0])
+            ctx.addLine(to: pts[1])
+            ctx.strokePath()
+            return
+        }
+
+        // Catmull-Rom スプライン補間でスムーズな曲線
+        ctx.move(to: pts[0])
+        for i in 0..<pts.count - 1 {
+            let p0 = pts[max(0, i - 1)]
+            let p1 = pts[i]
+            let p2 = pts[min(pts.count - 1, i + 1)]
+            let p3 = pts[min(pts.count - 1, i + 2)]
+
+            let cp1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) / 6.0,
+                y: p1.y + (p2.y - p0.y) / 6.0
+            )
+            let cp2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) / 6.0,
+                y: p2.y - (p3.y - p1.y) / 6.0
+            )
+
+            ctx.addCurve(to: p2, control1: cp1, control2: cp2)
         }
         ctx.strokePath()
     }
