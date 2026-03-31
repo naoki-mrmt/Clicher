@@ -62,14 +62,15 @@ private final class AreaSelectionWindow: NSWindow {
     }
 
     func show() {
+        NSApp.activate(ignoringOtherApps: true)
         orderFrontRegardless()
         makeKey()
-        // カーソルを即座にクロスヘアに変更（push で永続化）
-        NSCursor.crosshair.push()
+        NSCursor.crosshair.set()
+        invalidateCursorRects(for: contentView!)
     }
 
     private func finishSelection(rect: CGRect?) {
-        NSCursor.pop()
+        NSCursor.arrow.set()
         orderOut(nil)
         completionHandler?(rect)
         completionHandler = nil
@@ -107,11 +108,26 @@ private final class AreaSelectionView: NSView {
     init(completion: @escaping (CGRect?) -> Void) {
         self.completionHandler = completion
         super.init(frame: .zero)
+        // マウス移動イベントを受け取る（カーソル制御用）
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.activeAlways, .mouseMoved, .cursorUpdate, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        ))
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.crosshair.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        NSCursor.crosshair.set()
     }
 
     override func mouseDown(with event: NSEvent) {
