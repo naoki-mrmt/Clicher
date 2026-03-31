@@ -64,12 +64,12 @@ private final class AreaSelectionWindow: NSWindow {
     func show() {
         orderFrontRegardless()
         makeKey()
-        // カーソルを即座にクロスヘアに変更（resetCursorRects の遅延を回避）
-        NSCursor.crosshair.set()
+        // カーソルを即座にクロスヘアに変更（push で永続化）
+        NSCursor.crosshair.push()
     }
 
     private func finishSelection(rect: CGRect?) {
-        NSCursor.arrow.set()
+        NSCursor.pop()
         orderOut(nil)
         completionHandler?(rect)
         completionHandler = nil
@@ -129,8 +129,11 @@ private final class AreaSelectionView: NSView {
         currentPoint = convert(event.locationInWindow, from: nil)
 
         guard let rect = selectionRect, rect.width > 2, rect.height > 2 else {
-            // 小さすぎる選択はキャンセル扱い
-            completionHandler?(nil)
+            // 小さすぎる選択（クリックのみ）は無視して選択を続行
+            // リセットして次のドラッグを待つ
+            startPoint = nil
+            currentPoint = nil
+            needsDisplay = true
             return
         }
 
