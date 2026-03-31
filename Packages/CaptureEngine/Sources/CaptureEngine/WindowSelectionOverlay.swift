@@ -92,11 +92,7 @@ private final class WindowSelectionWindow: NSWindow {
 
     /// 変換ヘルパー（NSPoint → screen座標）
     private func convertToScreen(_ point: NSPoint) -> NSPoint {
-        let windowFrame = frame
-        return NSPoint(
-            x: windowFrame.origin.x + point.x,
-            y: windowFrame.origin.y + point.y
-        )
+        convertPoint(toScreen: point)
     }
 
     /// 指定座標にあるウィンドウを検索

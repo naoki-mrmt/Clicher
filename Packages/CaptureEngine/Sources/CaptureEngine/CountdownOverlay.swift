@@ -1,12 +1,14 @@
 import AppKit
 import SwiftUI
 import OSLog
+import Observation
 import Utilities
 
 /// カウントダウン表示用のフローティングオーバーレイ
 @MainActor
 public final class CountdownOverlay {
     private var panel: NSPanel?
+    private var countdownState: CountdownState?
 
     /// 現在の残り秒数
     public private(set) var remaining = 0
@@ -18,7 +20,10 @@ public final class CountdownOverlay {
         dismiss()
         remaining = seconds
 
-        let view = CountdownView(remaining: seconds)
+        let state = CountdownState(remaining: seconds)
+        self.countdownState = state
+
+        let view = CountdownView(state: state)
         let hostingView = NSHostingView(rootView: view)
         hostingView.setFrameSize(NSSize(width: 120, height: 120))
 
@@ -55,19 +60,27 @@ public final class CountdownOverlay {
     /// 残り秒数を更新
     public func update(remaining: Int) {
         self.remaining = remaining
-        guard let panel else { return }
-
-        let view = CountdownView(remaining: remaining)
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.setFrameSize(NSSize(width: 120, height: 120))
-        panel.contentView = hostingView
+        countdownState?.remaining = remaining
     }
 
     /// オーバーレイを閉じる
     public func dismiss() {
         panel?.orderOut(nil)
         panel = nil
+        countdownState = nil
         remaining = 0
+    }
+}
+
+// MARK: - CountdownState
+
+@Observable
+@MainActor
+final class CountdownState {
+    var remaining: Int
+
+    init(remaining: Int) {
+        self.remaining = remaining
     }
 }
 
@@ -75,10 +88,10 @@ public final class CountdownOverlay {
 
 /// カウントダウン数字を表示する SwiftUI ビュー
 struct CountdownView: View {
-    let remaining: Int
+    let state: CountdownState
 
     var body: some View {
-        Text("\(remaining)")
+        Text("\(state.remaining)")
             .font(.system(size: 64, weight: .bold, design: .rounded))
             .foregroundStyle(.white)
             .frame(width: 100, height: 100)

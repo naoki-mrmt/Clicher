@@ -171,12 +171,14 @@ public struct AnnotateCanvasRepresentable: NSViewRepresentable {
     }
 
     public func makeNSView(context: Context) -> AnnotateCanvasView {
+        // ピクセルサイズ → ポイントサイズに変換（Retina 対応）
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
         let canvas = AnnotateCanvasView(
             frame: NSRect(
                 origin: .zero,
                 size: NSSize(
-                    width: document.originalImage.width,
-                    height: document.originalImage.height
+                    width: CGFloat(document.originalImage.width) / scale,
+                    height: CGFloat(document.originalImage.height) / scale
                 )
             )
         )

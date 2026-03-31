@@ -1,7 +1,7 @@
 import AppKit
 
 /// 描画スタイル設定
-public struct AnnotationStyle: Equatable, Sendable {
+public struct AnnotationStyle: Equatable, @unchecked Sendable {
     public var strokeColor: NSColor
     public var fillColor: NSColor
     public var lineWidth: CGFloat

@@ -4,7 +4,7 @@ import SharedModels
 
 /// Core Graphics ベースのアノテーションキャンバス
 /// マウスイベントで描画操作を行い、全アノテーションを合成描画する
-public final class AnnotateCanvasView: NSView {
+public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     public var document: AnnotateDocument? {
         didSet {
             needsDisplay = true
@@ -57,11 +57,11 @@ public final class AnnotateCanvasView: NSView {
         ctx.restoreGState()
 
         // 確定済みアノテーション（isFlipped 座標系でそのまま描画）
-        AnnotateRenderer.render(items: document.items, in: ctx, size: size)
+        AnnotateRenderer.render(items: document.items, in: ctx, size: size, originalImage: document.originalImage)
 
         // 描画中の一時アイテム
         if let activeItem {
-            AnnotateRenderer.render(item: activeItem, in: ctx, size: size)
+            AnnotateRenderer.render(item: activeItem, in: ctx, size: size, originalImage: document.originalImage)
         }
 
         // 選択枠
@@ -80,6 +80,12 @@ public final class AnnotateCanvasView: NSView {
 
     override public func mouseDown(with event: NSEvent) {
         guard let document else { return }
+
+        // テキスト編集中なら先に確定する
+        if textField != nil {
+            finishTextEditing()
+        }
+
         let point = convert(event.locationInWindow, from: nil)
 
         // ヒットテスト: 既存アノテーションをクリックしたら選択
@@ -89,6 +95,8 @@ public final class AnnotateCanvasView: NSView {
             selectedItemID = hitItem.id
             dragOffset = CGPoint(x: point.x - hitItem.startPoint.x, y: point.y - hitItem.startPoint.y)
             isDraggingSelected = true
+            // ドラッグ移動前の状態を Undo スタックに保存
+            document.saveSnapshot()
             needsDisplay = true
             return
         }
@@ -201,8 +209,9 @@ public final class AnnotateCanvasView: NSView {
             ?? NSFont.systemFont(ofSize: document.currentStyle.fontSize)
         field.textColor = document.currentStyle.strokeColor
         field.focusRingType = .none
+        field.delegate = self
         field.target = self
-        field.action = #selector(textFieldDidEndEditing(_:))
+        field.action = #selector(textFieldDidReturn(_:))
         field.placeholderString = "テキストを入力"
 
         addSubview(field)
@@ -210,7 +219,11 @@ public final class AnnotateCanvasView: NSView {
         textField = field
     }
 
-    @objc private func textFieldDidEndEditing(_ sender: NSTextField) {
+    @objc private func textFieldDidReturn(_ sender: NSTextField) {
+        finishTextEditing()
+    }
+
+    public func controlTextDidEndEditing(_ obj: Notification) {
         finishTextEditing()
     }
 
@@ -291,19 +304,23 @@ public final class AnnotateCanvasView: NSView {
 
         ctx.scaleBy(x: scale, y: scale)
 
-        // 座標系を flipped に（isFlipped = true に合わせる）
+        // 座標系を flipped に（isFlipped = true の NSView と同じ座標系にする）
         ctx.translateBy(x: 0, y: size.height)
         ctx.scaleBy(x: 1, y: -1)
 
-        // 元画像
+        // 元画像（CGImage は左下原点前提なのでフリップ済み座標を一時的に戻す）
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: size.height)
+        ctx.scaleBy(x: 1, y: -1)
         ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
+        ctx.restoreGState()
 
-        // アノテーション
-        AnnotateRenderer.render(items: document.items, in: ctx, size: size)
+        // アノテーション（flipped 座標系でそのまま描画 — draw(_:) と同じ）
+        AnnotateRenderer.render(items: document.items, in: ctx, size: size, originalImage: document.originalImage)
 
         guard var image = ctx.makeImage() else { return nil }
 
-        // クロップ適用
+        // クロップ適用（cropRect は flipped 座標系 = makeImage() のピクセル配列と一致）
         if let cropRect = document.cropRect {
             let scaledCrop = CGRect(
                 x: cropRect.origin.x * scale,

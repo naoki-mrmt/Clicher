@@ -132,9 +132,17 @@ public final class InlineAnnotateOverlay {
         )
         dw.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)
         dw.isOpaque = false
-        dw.backgroundColor = NSColor.black.withAlphaComponent(0.3)
+        dw.backgroundColor = .clear
         dw.hasShadow = false
-        dw.ignoresMouseEvents = true // キャンバスへのクリックを通す
+        dw.ignoresMouseEvents = false
+
+        let clickView = DimClickView { [weak self] in
+            self?.handleCancel()
+        }
+        clickView.frame = screen.frame
+        clickView.wantsLayer = true
+        clickView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.3).cgColor
+        dw.contentView = clickView
 
         dw.orderFrontRegardless()
         self.dimWindow = dw
@@ -245,6 +253,16 @@ public final class InlineAnnotateOverlay {
     public func hideModeTab() {
         modeTabWindow?.orderOut(nil)
         modeTabWindow = nil
+    }
+
+    /// 背景暗転を一時的に非表示にする（エリア選択中の二重暗転を防ぐ）
+    public func hideDim() {
+        dimWindow?.orderOut(nil)
+    }
+
+    /// 背景暗転を再表示する
+    public func showDim() {
+        dimWindow?.orderFrontRegardless()
     }
 
     // MARK: - Key Monitor

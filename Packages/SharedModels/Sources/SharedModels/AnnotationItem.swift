@@ -30,6 +30,19 @@ public final class AnnotationItem: Identifiable {
         self.counterNumber = counterNumber
     }
 
+    /// ディープコピーを作成（Undo スタック保存用）
+    public func copy() -> AnnotationItem {
+        AnnotationItem(
+            toolType: toolType,
+            style: style,
+            startPoint: startPoint,
+            endPoint: endPoint,
+            points: points,
+            text: text,
+            counterNumber: counterNumber
+        )
+    }
+
     /// バウンディングボックス
     public var boundingRect: CGRect {
         switch toolType {

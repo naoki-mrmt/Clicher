@@ -18,19 +18,27 @@ public final class BrandPresetStore {
             .appendingPathComponent("presets")
 
         // ディレクトリがなければ作成
-        try? FileManager.default.createDirectory(
-            at: presetsDirectory,
-            withIntermediateDirectories: true
-        )
+        do {
+            try FileManager.default.createDirectory(
+                at: presetsDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            Logger.app.error("プリセットディレクトリ作成失敗: \(error)")
+        }
     }
 
     /// テスト用: カスタムディレクトリを指定
     public init(directory: URL) {
         self.presetsDirectory = directory
-        try? FileManager.default.createDirectory(
-            at: presetsDirectory,
-            withIntermediateDirectories: true
-        )
+        do {
+            try FileManager.default.createDirectory(
+                at: presetsDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            Logger.app.error("プリセットディレクトリ作成失敗: \(error)")
+        }
     }
 
     // MARK: - CRUD
