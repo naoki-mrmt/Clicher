@@ -82,6 +82,13 @@ private final class AreaSelectionWindow: NSWindow {
         // Escape でキャンセル
         if event.keyCode == 53 {
             finishSelection(rect: nil)
+            return
+        }
+        // Enter / Return で選択確定
+        if event.keyCode == 36 || event.keyCode == 76 {
+            if let view = selectionView {
+                view.confirmSelection()
+            }
         }
     }
 }
@@ -90,9 +97,13 @@ private final class AreaSelectionWindow: NSWindow {
 
 /// マウスドラッグで選択範囲を描画するビュー
 private final class AreaSelectionView: NSView {
+    private enum Phase { case idle, drawing, adjusting }
+
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
     private var completionHandler: ((CGRect?) -> Void)?
+    private var phase: Phase = .idle
+    private var adjustDragStart: NSPoint?
 
     /// 選択中の矩形
     private var selectionRect: NSRect? {
@@ -108,7 +119,6 @@ private final class AreaSelectionView: NSView {
     init(completion: @escaping (CGRect?) -> Void) {
         self.completionHandler = completion
         super.init(frame: .zero)
-        // マウス移動イベントを受け取る（カーソル制御用）
         addTrackingArea(NSTrackingArea(
             rect: .zero,
             options: [.activeAlways, .mouseMoved, .cursorUpdate, .inVisibleRect],
@@ -131,36 +141,91 @@ private final class AreaSelectionView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        startPoint = convert(event.locationInWindow, from: nil)
-        currentPoint = startPoint
+        let point = convert(event.locationInWindow, from: nil)
+
+        switch phase {
+        case .idle:
+            startPoint = point
+            currentPoint = point
+            phase = .drawing
+
+        case .adjusting:
+            // ダブルクリック → 確定
+            if event.clickCount == 2, let rect = selectionRect, rect.contains(point) {
+                confirmSelection()
+                return
+            }
+            // 選択範囲内ドラッグ → 移動
+            if let rect = selectionRect, rect.contains(point) {
+                adjustDragStart = point
+            } else {
+                // 選択範囲外 → 新規描画
+                startPoint = point
+                currentPoint = point
+                phase = .drawing
+            }
+
+        case .drawing:
+            break
+        }
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        currentPoint = convert(event.locationInWindow, from: nil)
+        let point = convert(event.locationInWindow, from: nil)
+
+        switch phase {
+        case .drawing:
+            currentPoint = point
+
+        case .adjusting:
+            // 選択範囲を移動
+            if let dragStart = adjustDragStart, let start = startPoint, let current = currentPoint {
+                let dx = point.x - dragStart.x
+                let dy = point.y - dragStart.y
+                startPoint = NSPoint(x: start.x + dx, y: start.y + dy)
+                currentPoint = NSPoint(x: current.x + dx, y: current.y + dy)
+                adjustDragStart = point
+            }
+
+        case .idle:
+            break
+        }
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        currentPoint = convert(event.locationInWindow, from: nil)
+        let point = convert(event.locationInWindow, from: nil)
 
-        guard let rect = selectionRect, rect.width > 2, rect.height > 2 else {
-            // 小さすぎる選択（クリックのみ）は無視して選択を続行
-            // リセットして次のドラッグを待つ
-            startPoint = nil
-            currentPoint = nil
-            needsDisplay = true
-            return
+        switch phase {
+        case .drawing:
+            currentPoint = point
+            guard let rect = selectionRect, rect.width > 2, rect.height > 2 else {
+                // 小さすぎる → リセット
+                startPoint = nil
+                currentPoint = nil
+                phase = .idle
+                needsDisplay = true
+                return
+            }
+            // 描画完了 → 調整モードへ
+            phase = .adjusting
+
+        case .adjusting:
+            adjustDragStart = nil
+
+        case .idle:
+            break
         }
+        needsDisplay = true
+    }
 
-        // NSView 座標 → スクリーン座標に変換
-        guard let windowFrame = window?.frame else {
+    /// 選択を確定して完了
+    fileprivate func confirmSelection() {
+        guard let rect = selectionRect, let windowFrame = window?.frame else {
             completionHandler?(nil)
             return
         }
-
-        // macOS スクリーン座標（左下原点）をそのまま返す
-        // SCK 座標への変換は呼び出し側（CaptureCoordinator）で行う
         let screenRect = CGRect(
             x: windowFrame.origin.x + rect.origin.x,
             y: windowFrame.origin.y + rect.origin.y,

@@ -15,8 +15,8 @@ public final class InlineAnnotateOverlay {
     private var modeTabWindow: NSPanel?
     private var document: AnnotateDocument?
     private var canvasView: AnnotateCanvasView?
-    private var localKeyMonitor: Any?
-    private var globalKeyMonitor: Any?
+    nonisolated(unsafe) private var localKeyMonitor: Any?
+    nonisolated(unsafe) private var globalKeyMonitor: Any?
 
     /// 完了時のコールバック（編集済み画像）
     public var onComplete: ((CGImage) -> Void)?
@@ -31,6 +31,15 @@ public final class InlineAnnotateOverlay {
     public var onModeChanged: ((CaptureMode) -> Void)?
 
     public init() {}
+
+    deinit {
+        if let monitor = localKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = globalKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
 
     // MARK: - Show
 
@@ -158,12 +167,15 @@ public final class InlineAnnotateOverlay {
             toolbarY = canvasRect.maxY + 8
         }
 
-        // キャンバスの中央に揃える
-        let toolbarX = canvasRect.midX - toolbarSize.width / 2
+        // キャンバスの中央に揃える + 画面内にクランプ
+        let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+        let rawX = canvasRect.midX - toolbarSize.width / 2
+        let toolbarX = max(screenFrame.minX + 8, min(rawX, screenFrame.maxX - toolbarSize.width - 8))
+        let clampedY = max(screenFrame.minY + 8, min(toolbarY, screenFrame.maxY - toolbarSize.height - 8))
 
         let panel = NSPanel(
             contentRect: NSRect(
-                origin: NSPoint(x: toolbarX, y: toolbarY),
+                origin: NSPoint(x: toolbarX, y: clampedY),
                 size: toolbarSize
             ),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],

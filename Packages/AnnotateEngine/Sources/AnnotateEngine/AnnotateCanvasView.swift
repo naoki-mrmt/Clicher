@@ -6,8 +6,22 @@ import SharedModels
 /// マウスイベントで描画操作を行い、全アノテーションを合成描画する
 public final class AnnotateCanvasView: NSView {
     public var document: AnnotateDocument? {
-        didSet { needsDisplay = true }
+        didSet {
+            needsDisplay = true
+            document?.onItemsChanged = { [weak self] in
+                self?.needsDisplay = true
+            }
+        }
     }
+
+    /// 選択中のアノテーション ID
+    private var selectedItemID: UUID?
+
+    /// ドラッグ移動のオフセット
+    private var dragOffset: CGPoint?
+
+    /// 選択中のアイテムをドラッグ中か
+    private var isDraggingSelected = false
 
     /// 描画中の一時アイテム
     private var activeItem: AnnotationItem?
@@ -49,6 +63,17 @@ public final class AnnotateCanvasView: NSView {
         if let activeItem {
             AnnotateRenderer.render(item: activeItem, in: ctx, size: size)
         }
+
+        // 選択枠
+        if let selectedID = selectedItemID,
+           let selectedItem = document.items.first(where: { $0.id == selectedID }) {
+            let selRect = selectedItem.boundingRect.insetBy(dx: -4, dy: -4)
+            ctx.setStrokeColor(NSColor.systemBlue.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.setLineDash(phase: 0, lengths: [4, 3])
+            ctx.stroke(selRect)
+            ctx.setLineDash(phase: 0, lengths: [])
+        }
     }
 
     // MARK: - Mouse Events
@@ -56,6 +81,21 @@ public final class AnnotateCanvasView: NSView {
     override public func mouseDown(with event: NSEvent) {
         guard let document else { return }
         let point = convert(event.locationInWindow, from: nil)
+
+        // ヒットテスト: 既存アノテーションをクリックしたら選択
+        if let hitItem = document.items.last(where: {
+            $0.boundingRect.insetBy(dx: -6, dy: -6).contains(point)
+        }) {
+            selectedItemID = hitItem.id
+            dragOffset = CGPoint(x: point.x - hitItem.startPoint.x, y: point.y - hitItem.startPoint.y)
+            isDraggingSelected = true
+            needsDisplay = true
+            return
+        }
+
+        // 何もない場所をクリック → 選択解除
+        selectedItemID = nil
+        needsDisplay = true
 
         if document.currentTool == .text {
             startTextEditing(at: point)
@@ -85,8 +125,27 @@ public final class AnnotateCanvasView: NSView {
     }
 
     override public func mouseDragged(with event: NSEvent) {
-        guard let activeItem else { return }
         let point = convert(event.locationInWindow, from: nil)
+
+        // 選択中アイテムのドラッグ移動
+        if isDraggingSelected, let selectedID = selectedItemID, let offset = dragOffset,
+           let item = document?.items.first(where: { $0.id == selectedID }) {
+            let dx = point.x - offset.x - item.startPoint.x
+            let dy = point.y - offset.y - item.startPoint.y
+            item.startPoint.x += dx
+            item.startPoint.y += dy
+            item.endPoint.x += dx
+            item.endPoint.y += dy
+            for i in item.points.indices {
+                item.points[i].x += dx
+                item.points[i].y += dy
+            }
+            dragOffset = CGPoint(x: point.x - item.startPoint.x, y: point.y - item.startPoint.y)
+            needsDisplay = true
+            return
+        }
+
+        guard let activeItem else { return }
 
         if activeItem.toolType == .pencil {
             activeItem.points.append(point)
@@ -98,6 +157,14 @@ public final class AnnotateCanvasView: NSView {
     }
 
     override public func mouseUp(with event: NSEvent) {
+        // 選択ドラッグ終了
+        if isDraggingSelected {
+            isDraggingSelected = false
+            dragOffset = nil
+            needsDisplay = true
+            return
+        }
+
         guard let activeItem, let document else { return }
         let point = convert(event.locationInWindow, from: nil)
 
@@ -125,7 +192,8 @@ public final class AnnotateCanvasView: NSView {
         // 既存のテキストフィールドがあれば確定
         finishTextEditing()
 
-        let field = NSTextField(frame: NSRect(x: point.x, y: point.y, width: 200, height: 30))
+        let height = max(30, document.currentStyle.fontSize + 12)
+        let field = NSTextField(frame: NSRect(x: point.x, y: point.y, width: 120, height: height))
         field.isBezeled = false
         field.drawsBackground = false
         field.isEditable = true
@@ -177,6 +245,14 @@ public final class AnnotateCanvasView: NSView {
 
         let flags = event.modifierFlags
         let key = event.charactersIgnoringModifiers
+
+        // Delete / Backspace で選択中のアノテーションを削除
+        if (event.keyCode == 51 || event.keyCode == 117), let selectedID = selectedItemID {
+            document.removeItem(id: selectedID)
+            selectedItemID = nil
+            needsDisplay = true
+            return
+        }
 
         // ⌘Z = Undo, ⌘⇧Z = Redo
         if flags.contains(.command) && key == "z" {

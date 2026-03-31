@@ -38,6 +38,9 @@ public final class AnnotateDocument {
     /// Redo 可能か
     public var canRedo: Bool { !redoStack.isEmpty }
 
+    /// アイテム変更時のコールバック（キャンバス再描画用）
+    public var onItemsChanged: (() -> Void)?
+
     public init(image: CGImage) {
         self.originalImage = image
     }
@@ -49,6 +52,7 @@ public final class AnnotateDocument {
         saveStateForUndo()
         items.append(item)
         redoStack.removeAll()
+        onItemsChanged?()
         Logger.app.debug("アノテーション追加: \(item.toolType.rawValue)")
     }
 
@@ -58,6 +62,15 @@ public final class AnnotateDocument {
         saveStateForUndo()
         items.removeLast()
         redoStack.removeAll()
+        onItemsChanged?()
+    }
+
+    /// 指定 ID のアノテーション要素を削除
+    public func removeItem(id: UUID) {
+        saveStateForUndo()
+        items.removeAll { $0.id == id }
+        redoStack.removeAll()
+        onItemsChanged?()
     }
 
     // MARK: - Undo / Redo
@@ -67,6 +80,7 @@ public final class AnnotateDocument {
         guard let previousState = undoStack.popLast() else { return }
         redoStack.append(items)
         items = previousState
+        onItemsChanged?()
         Logger.app.debug("Undo 実行 (残りスタック: \(self.undoStack.count))")
     }
 
@@ -75,6 +89,7 @@ public final class AnnotateDocument {
         guard let nextState = redoStack.popLast() else { return }
         undoStack.append(items)
         items = nextState
+        onItemsChanged?()
         Logger.app.debug("Redo 実行 (残りスタック: \(self.redoStack.count))")
     }
 
