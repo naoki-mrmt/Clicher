@@ -90,6 +90,21 @@ struct ClicherApp: App {
         // デフォルトブランドプリセットを Annotate に適用
         annotateWindow.defaultPreset = presetStore?.defaultPreset()
 
+        // スクロールキャプチャ操作 UI
+        captureCoordinator.onScrollCaptureStarted = {
+            let controls = ScrollCaptureControls()
+            controls.onCaptureFrame = {
+                Task { await captureCoordinator.captureScrollFrame() }
+            }
+            controls.onFinish = {
+                captureCoordinator.finishScrollCapture()
+            }
+            controls.onCancel = {
+                captureCoordinator.cancelScrollCapture()
+            }
+            controls.show()
+        }
+
         // Annotate 完了 → クリップボードにコピー
         annotateWindow.onComplete = { image in
             ImageExporter.copyToClipboard(image)
