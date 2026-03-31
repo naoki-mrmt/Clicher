@@ -78,7 +78,7 @@ public final class AnnotateDocument {
     /// Undo
     public func undo() {
         guard let previousState = undoStack.popLast() else { return }
-        redoStack.append(items)
+        redoStack.append(items.map { $0.copy() })
         items = previousState
         onItemsChanged?()
         Logger.app.debug("Undo 実行 (残りスタック: \(self.undoStack.count))")
@@ -87,16 +87,22 @@ public final class AnnotateDocument {
     /// Redo
     public func redo() {
         guard let nextState = redoStack.popLast() else { return }
-        undoStack.append(items)
+        undoStack.append(items.map { $0.copy() })
         items = nextState
         onItemsChanged?()
         Logger.app.debug("Redo 実行 (残りスタック: \(self.redoStack.count))")
     }
 
+    /// 現在の状態を Undo スタックに保存（外部からの直接変更前に呼ぶ）
+    public func saveSnapshot() {
+        saveStateForUndo()
+        redoStack.removeAll()
+    }
+
     // MARK: - Private
 
     private func saveStateForUndo() {
-        undoStack.append(items)
+        undoStack.append(items.map { $0.copy() })
         // メモリ節約のため最大50ステップ
         if undoStack.count > 50 {
             undoStack.removeFirst()

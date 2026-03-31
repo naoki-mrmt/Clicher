@@ -107,15 +107,23 @@ public final class AnnotateWindow {
 
         let size = CGSize(width: width, height: height)
 
-        // 元画像
-        ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
+        // 座標系を flipped に（AnnotateCanvasView.isFlipped=true と同じ座標系）
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: 1, y: -1)
 
-        // アノテーション
-        AnnotateRenderer.render(items: document.items, in: ctx, size: size)
+        // 元画像（CGImage は左下原点前提なのでフリップ済み座標を一時的に戻す）
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
+        ctx.restoreGState()
+
+        // アノテーション（flipped 座標系でそのまま描画）
+        AnnotateRenderer.render(items: document.items, in: ctx, size: size, originalImage: document.originalImage)
 
         guard var image = ctx.makeImage() else { return nil }
 
-        // クロップ
+        // クロップ（cropRect は flipped 座標系 = makeImage() のピクセル配列と一致）
         if let cropRect = document.cropRect {
             if let cropped = image.cropping(to: cropRect) {
                 image = cropped

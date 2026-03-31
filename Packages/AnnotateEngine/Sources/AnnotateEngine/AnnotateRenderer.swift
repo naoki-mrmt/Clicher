@@ -6,14 +6,14 @@ import SharedModels
 /// アノテーション要素を CGContext に描画するレンダラー
 public enum AnnotateRenderer {
     /// 全アノテーション要素を描画
-    public static func render(items: [AnnotationItem], in context: CGContext, size: CGSize) {
+    public static func render(items: [AnnotationItem], in context: CGContext, size: CGSize, originalImage: CGImage? = nil) {
         for item in items {
-            render(item: item, in: context, size: size)
+            render(item: item, in: context, size: size, originalImage: originalImage)
         }
     }
 
     /// 単一アノテーション要素を描画
-    public static func render(item: AnnotationItem, in context: CGContext, size: CGSize) {
+    public static func render(item: AnnotationItem, in context: CGContext, size: CGSize, originalImage: CGImage? = nil) {
         context.saveGState()
         defer { context.restoreGState() }
 
@@ -29,7 +29,7 @@ public enum AnnotateRenderer {
         case .text:
             drawText(item, in: context)
         case .pixelate:
-            drawPixelate(item, in: context, size: size)
+            drawPixelate(item, in: context, size: size, originalImage: originalImage)
         case .highlight:
             drawHighlight(item, in: context)
         case .counter:
@@ -155,7 +155,6 @@ public enum AnnotateRenderer {
         ]
 
         let nsString = item.text as NSString
-        let size = nsString.size(withAttributes: attributes)
 
         // isFlipped=true の座標系でテキストを描画
         let drawPoint = CGPoint(
@@ -165,23 +164,122 @@ public enum AnnotateRenderer {
 
         // NSGraphicsContext 経由で描画（flipped=true で座標系を合わせる）
         NSGraphicsContext.saveGraphicsState()
-        do {
-            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
-            NSGraphicsContext.current = nsCtx
-            nsString.draw(at: drawPoint, withAttributes: attributes)
-        }
-        NSGraphicsContext.restoreGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
+        NSGraphicsContext.current = nsCtx
+        nsString.draw(at: drawPoint, withAttributes: attributes)
     }
 
     // MARK: - Pixelate
 
-    private static func drawPixelate(_ item: AnnotationItem, in ctx: CGContext, size: CGSize) {
+    private static func drawPixelate(_ item: AnnotationItem, in ctx: CGContext, size: CGSize, originalImage: CGImage? = nil) {
         let rect = item.boundingRect
         guard rect.width > 0, rect.height > 0 else { return }
 
-        let blockSize: CGFloat = 10
+        let blockSize: CGFloat = 12
 
-        // 矩形内をブロック化して描画
+        guard let originalImage else {
+            // 元画像がない場合はグレーブロックでフォールバック
+            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
+            return
+        }
+
+        // 元画像のピクセルデータを取得してブロック平均色でモザイク描画
+        let imgW = CGFloat(originalImage.width)
+        let imgH = CGFloat(originalImage.height)
+        let scaleX = imgW / size.width
+        let scaleY = imgH / size.height
+
+        // 元画像から選択範囲を切り出し（ピクセル座標に変換）
+        // rect は flipped 座標系（top-left 原点）だが CGImage は bottom-left 原点なので Y を反転
+        let flippedY = imgH - (rect.origin.y + rect.height) * scaleY
+        let cropRect = CGRect(
+            x: max(0, rect.origin.x * scaleX),
+            y: max(0, flippedY),
+            width: min(rect.width * scaleX, imgW),
+            height: min(rect.height * scaleY, imgH)
+        )
+
+        guard let croppedImage = originalImage.cropping(to: cropRect),
+              let dataProvider = croppedImage.dataProvider,
+              let data = dataProvider.data,
+              let ptr = CFDataGetBytePtr(data) else {
+            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
+            return
+        }
+
+        let bpp = croppedImage.bitsPerPixel / 8
+        guard bpp >= 3 else {
+            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
+            return
+        }
+        let rowBytes = croppedImage.bytesPerRow
+        let cropW = croppedImage.width
+        let cropH = croppedImage.height
+
+        // ピクセルフォーマットに応じた RGB チャネルオフセットを決定
+        let alphaInfo = croppedImage.alphaInfo
+        let rOffset: Int
+        let gOffset: Int
+        let bOffset: Int
+        switch alphaInfo {
+        case .premultipliedFirst, .first, .noneSkipFirst:
+            // ARGB 系: [A][R][G][B]
+            rOffset = 1; gOffset = 2; bOffset = 3
+        default:
+            // RGBA 系 / その他: [R][G][B][A] or [R][G][B]
+            rOffset = 0; gOffset = 1; bOffset = 2
+        }
+
+        let blockScaleX = CGFloat(cropW) / rect.width
+        let blockScaleY = CGFloat(cropH) / rect.height
+
+        var y = rect.minY
+        while y < rect.maxY {
+            var x = rect.minX
+            while x < rect.maxX {
+                let bw = min(blockSize, rect.maxX - x)
+                let bh = min(blockSize, rect.maxY - y)
+
+                // ピクセル座標でのブロック範囲
+                let px0 = Int((x - rect.minX) * blockScaleX)
+                let py0 = Int((y - rect.minY) * blockScaleY)
+                let px1 = min(Int((x - rect.minX + bw) * blockScaleX), cropW)
+                let py1 = min(Int((y - rect.minY + bh) * blockScaleY), cropH)
+
+                // ブロック内ピクセルの平均色を計算
+                var totalR = 0, totalG = 0, totalB = 0, count = 0
+                for py in stride(from: py0, to: py1, by: max(1, (py1 - py0) / 4)) {
+                    for px in stride(from: px0, to: px1, by: max(1, (px1 - px0) / 4)) {
+                        let offset = py * rowBytes + px * bpp
+                        guard offset + bOffset < CFDataGetLength(data) else { continue }
+                        totalR += Int(ptr[offset + rOffset])
+                        totalG += Int(ptr[offset + gOffset])
+                        totalB += Int(ptr[offset + bOffset])
+                        count += 1
+                    }
+                }
+
+                if count > 0 {
+                    let color = CGColor(
+                        red: CGFloat(totalR) / CGFloat(count) / 255.0,
+                        green: CGFloat(totalG) / CGFloat(count) / 255.0,
+                        blue: CGFloat(totalB) / CGFloat(count) / 255.0,
+                        alpha: 1.0
+                    )
+                    ctx.setFillColor(color)
+                } else {
+                    ctx.setFillColor(CGColor(gray: 0.5, alpha: 0.8))
+                }
+
+                ctx.fill(CGRect(x: x, y: y, width: bw, height: bh))
+                x += blockSize
+            }
+            y += blockSize
+        }
+    }
+
+    private static func drawPixelateFallback(rect: CGRect, blockSize: CGFloat, in ctx: CGContext) {
         var y = rect.minY
         while y < rect.maxY {
             var x = rect.minX
@@ -191,7 +289,6 @@ public enum AnnotateRenderer {
                     width: min(blockSize, rect.maxX - x),
                     height: min(blockSize, rect.maxY - y)
                 )
-                // 簡易ピクセレーション: ランダムなグレー値で塗りつぶし
                 let gray = CGFloat.random(in: 0.3...0.7)
                 ctx.setFillColor(CGColor(gray: gray, alpha: 0.8))
                 ctx.fill(blockRect)
@@ -238,12 +335,10 @@ public enum AnnotateRenderer {
         )
 
         NSGraphicsContext.saveGraphicsState()
-        do {
-            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
-            NSGraphicsContext.current = nsCtx
-            text.draw(at: drawPoint, withAttributes: attributes)
-        }
-        NSGraphicsContext.restoreGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
+        NSGraphicsContext.current = nsCtx
+        text.draw(at: drawPoint, withAttributes: attributes)
     }
 
     // MARK: - Pencil

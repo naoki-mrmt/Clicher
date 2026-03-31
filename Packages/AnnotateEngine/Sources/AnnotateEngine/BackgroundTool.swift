@@ -68,6 +68,7 @@ public struct BackgroundConfig: Sendable {
 
 /// スクリーンショットに背景を追加するツール
 public enum BackgroundTool {
+    private static let colorSpace = CGColorSpaceCreateDeviceRGB()
     /// 画像に背景を適用
     public static func apply(to image: CGImage, config: BackgroundConfig) -> CGImage? {
         let imageWidth = CGFloat(image.width)
@@ -92,7 +93,7 @@ public enum BackgroundTool {
             height: canvasHeight,
             bitsPerComponent: 8,
             bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
+            space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
         ) else { return nil }
 
@@ -173,7 +174,7 @@ public enum BackgroundTool {
         angle: CGFloat
     ) {
         guard let gradient = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colorsSpace: colorSpace,
             colors: [startColor, endColor] as CFArray,
             locations: [0, 1]
         ) else { return }
