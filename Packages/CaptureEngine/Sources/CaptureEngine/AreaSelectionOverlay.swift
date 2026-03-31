@@ -64,9 +64,12 @@ private final class AreaSelectionWindow: NSWindow {
     func show() {
         orderFrontRegardless()
         makeKey()
+        // カーソルを即座にクロスヘアに変更（resetCursorRects の遅延を回避）
+        NSCursor.crosshair.set()
     }
 
     private func finishSelection(rect: CGRect?) {
+        NSCursor.arrow.set()
         orderOut(nil)
         completionHandler?(rect)
         completionHandler = nil
