@@ -86,9 +86,12 @@ public final class InlineAnnotateOverlay {
         cw.isOpaque = false
         cw.backgroundColor = .clear
         cw.hasShadow = true
+        cw.acceptsMouseMovedEvents = true
         cw.contentView = canvas
+        NSApp.activate(ignoringOtherApps: true)
         cw.orderFrontRegardless()
         cw.makeKey()
+        cw.makeFirstResponder(canvas)
         self.canvasWindow = cw
 
         // 3. モードタブバーを非表示（エリア選択完了後はツールバーのみ）
