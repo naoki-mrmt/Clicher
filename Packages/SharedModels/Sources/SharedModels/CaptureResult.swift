@@ -1,7 +1,7 @@
 import AppKit
 
 /// キャプチャの結果を保持する型
-public struct CaptureResult: Sendable {
+public struct CaptureResult: @unchecked Sendable {
     /// キャプチャされた画像
     public let image: CGImage
 
