@@ -6,6 +6,9 @@ import Utilities
 /// ウィンドウ選択オーバーレイ
 /// マウスホバーでウィンドウをハイライト、クリックで選択
 public final class WindowSelectionOverlay {
+    /// ウィンドウの強参照（ARC による早期解放を防ぐ）
+    @MainActor private static var activeWindow: WindowSelectionWindow?
+
     /// ウィンドウ選択を開始し、ユーザーが選択するまで待機
     /// キャンセル（Esc）の場合は nil を返す
     @MainActor
@@ -26,9 +29,11 @@ public final class WindowSelectionOverlay {
 
         return await withCheckedContinuation { continuation in
             let overlay = WindowSelectionWindow(windows: validWindows) { window in
+                activeWindow = nil
                 nonisolated(unsafe) let selected = window
                 continuation.resume(returning: selected)
             }
+            activeWindow = overlay
             overlay.show()
         }
     }

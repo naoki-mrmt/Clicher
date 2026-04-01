@@ -64,9 +64,11 @@ public final class InlineAnnotateOverlay {
         let doc = AnnotateDocument(image: image)
         self.document = doc
 
-        // 1. 背景暗転（まだなければ作成）
+        // 1. 背景暗転（まだなければ作成、隠れていれば再表示）
         if dimWindow == nil {
             showDimWindow()
+        } else {
+            dimWindow?.orderFrontRegardless()
         }
 
         // 2. キャンバスウィンドウ（選択範囲にぴったり配置）

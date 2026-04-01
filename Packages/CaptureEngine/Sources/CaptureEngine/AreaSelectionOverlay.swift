@@ -5,14 +5,19 @@ import Utilities
 /// エリア選択オーバーレイ
 /// 全画面透明ウィンドウでマウスドラッグによる範囲選択を行う
 public final class AreaSelectionOverlay {
+    /// ウィンドウの強参照（ARC による早期解放を防ぐ）
+    @MainActor private static var activeWindow: AreaSelectionWindow?
+
     /// エリア選択を開始し、ユーザーが範囲を選択するまで待機
     /// キャンセル（Esc）の場合は nil を返す
     public static func selectArea() async -> CGRect? {
         await withCheckedContinuation { continuation in
             Task { @MainActor in
                 let overlay = AreaSelectionWindow { rect in
+                    activeWindow = nil
                     continuation.resume(returning: rect)
                 }
+                activeWindow = overlay
                 overlay.show()
             }
         }
@@ -66,7 +71,9 @@ private final class AreaSelectionWindow: NSWindow {
         orderFrontRegardless()
         makeKey()
         NSCursor.crosshair.set()
-        invalidateCursorRects(for: contentView!)
+        if let view = contentView {
+            invalidateCursorRects(for: view)
+        }
     }
 
     private func finishSelection(rect: CGRect?) {
