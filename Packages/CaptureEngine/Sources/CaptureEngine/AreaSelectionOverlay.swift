@@ -215,8 +215,8 @@ private final class AreaSelectionView: NSView {
                 needsDisplay = true
                 return
             }
-            // 描画完了 → 調整モードへ
-            phase = .adjusting
+            // 描画完了 → 即確定（Lark 風）
+            confirmSelection()
 
         case .adjusting:
             adjustDragStart = nil
