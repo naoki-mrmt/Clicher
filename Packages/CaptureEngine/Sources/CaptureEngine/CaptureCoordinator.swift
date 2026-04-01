@@ -149,6 +149,8 @@ public final class CaptureCoordinator {
         guard let macRect = await selectionTask else {
             Logger.capture.info("エリア選択がキャンセルされました")
             _ = try? await contentTask
+            inlineAnnotate?.dismiss()
+            inlineAnnotate = nil
             isCapturing = false
             return
         }
