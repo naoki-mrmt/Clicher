@@ -54,6 +54,7 @@ Pods/
 *~
 
 # Secrets
+.env
 *.p12
 *.mobileprovision
 *.provisionprofile
