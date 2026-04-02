@@ -9,6 +9,7 @@ public struct QuickAccessView: View {
     public let onEdit: () -> Void
     public let onPin: () -> Void
     public let onClose: () -> Void
+    public let onHoverChanged: ((Bool) -> Void)?
 
     @State private var isHovering = false
 
@@ -18,7 +19,8 @@ public struct QuickAccessView: View {
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onPin: @escaping () -> Void = {},
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        onHoverChanged: ((Bool) -> Void)? = nil
     ) {
         self.result = result
         self.onSave = onSave
@@ -26,13 +28,17 @@ public struct QuickAccessView: View {
         self.onEdit = onEdit
         self.onPin = onPin
         self.onClose = onClose
+        self.onHoverChanged = onHoverChanged
     }
 
     public var body: some View {
         VStack(spacing: 0) {
             // サムネイル
             thumbnail
-                .onHover { isHovering = $0 }
+                .onHover {
+                    isHovering = $0
+                    onHoverChanged?($0)
+                }
 
             // アクションバー
             if isHovering {
