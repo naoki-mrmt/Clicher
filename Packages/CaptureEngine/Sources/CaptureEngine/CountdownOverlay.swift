@@ -66,6 +66,7 @@ public final class CountdownOverlay {
     /// オーバーレイを閉じる
     public func dismiss() {
         panel?.orderOut(nil)
+        panel?.close()
         panel = nil
         countdownState = nil
         remaining = 0

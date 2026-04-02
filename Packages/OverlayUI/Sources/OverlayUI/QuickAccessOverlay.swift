@@ -11,6 +11,9 @@ public final class QuickAccessOverlay {
     private var panel: NSPanel?
     private var autoCloseTask: Task<Void, Never>?
 
+    /// アプリ設定（表示位置・自動クローズ秒数）
+    public var settings: AppSettings?
+
     /// キャプチャ完了通知時のコールバック
     public var onSave: ((CaptureResult) -> Void)?
     public var onCopy: ((CaptureResult) -> Void)?
@@ -22,6 +25,8 @@ public final class QuickAccessOverlay {
     /// オーバーレイを表示
     public func show(result: CaptureResult) {
         dismiss()
+
+        let autoCloseSeconds = TimeInterval(settings?.overlayAutoCloseSeconds ?? 5)
 
         let overlayView = QuickAccessView(
             result: result,
@@ -49,7 +54,7 @@ public final class QuickAccessOverlay {
                     self?.autoCloseTask?.cancel()
                     self?.autoCloseTask = nil
                 } else {
-                    self?.scheduleAutoClose(seconds: 5)
+                    self?.scheduleAutoClose(seconds: autoCloseSeconds)
                 }
             }
         )
@@ -72,7 +77,7 @@ public final class QuickAccessOverlay {
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
 
-        // 画面右下に配置
+        // 設定に応じた位置に配置
         positionPanel(panel)
 
         // フェードイン
@@ -87,8 +92,10 @@ public final class QuickAccessOverlay {
 
         self.panel = panel
 
-        // 5秒後に自動クローズ
-        scheduleAutoClose(seconds: 5)
+        // 自動クローズ（0 = 無効）
+        if autoCloseSeconds > 0 {
+            scheduleAutoClose(seconds: autoCloseSeconds)
+        }
 
         Logger.app.info("Quick Access Overlay を表示")
     }
@@ -120,11 +127,27 @@ public final class QuickAccessOverlay {
         let panelSize = panel.frame.size
         let padding: CGFloat = 16
 
-        let origin = NSPoint(
-            x: screenFrame.maxX - panelSize.width - padding,
-            y: screenFrame.minY + padding
-        )
-        panel.setFrameOrigin(origin)
+        let position = settings?.overlayPosition ?? .bottomRight
+
+        let x: CGFloat
+        let y: CGFloat
+
+        switch position {
+        case .topLeft:
+            x = screenFrame.minX + padding
+            y = screenFrame.maxY - panelSize.height - padding
+        case .topRight:
+            x = screenFrame.maxX - panelSize.width - padding
+            y = screenFrame.maxY - panelSize.height - padding
+        case .bottomLeft:
+            x = screenFrame.minX + padding
+            y = screenFrame.minY + padding
+        case .bottomRight:
+            x = screenFrame.maxX - panelSize.width - padding
+            y = screenFrame.minY + padding
+        }
+
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
     private func scheduleAutoClose(seconds: TimeInterval) {

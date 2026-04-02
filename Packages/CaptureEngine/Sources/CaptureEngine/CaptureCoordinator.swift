@@ -28,6 +28,9 @@ public final class CaptureCoordinator {
     /// カウントダウン開始時のコールバック（UI表示用）
     public var onCountdownTick: ((Int) -> Void)?
 
+    /// エラー発生時のコールバック（UI通知用）
+    public var onError: ((String) -> Void)?
+
     /// 録画中かどうか
     public private(set) var isRecording = false
 
@@ -42,6 +45,7 @@ public final class CaptureCoordinator {
 
     private let captureService: ScreenCaptureServiceProtocol
     private var countdownOverlay: CountdownOverlay?
+    private var countdownTask: Task<Void, Never>?
 
     public init(captureService: ScreenCaptureServiceProtocol = ScreenCaptureService()) {
         self.captureService = captureService
@@ -63,6 +67,7 @@ public final class CaptureCoordinator {
     // MARK: - Countdown
 
     private func startCountdown(seconds: Int, completion: @escaping () -> Void) {
+        countdownTask?.cancel()
         isCountingDown = true
         countdownRemaining = seconds
 
@@ -70,12 +75,20 @@ public final class CaptureCoordinator {
         overlay.show(seconds: seconds)
         countdownOverlay = overlay
 
-        Task {
+        countdownTask = Task {
             for remaining in stride(from: seconds, through: 1, by: -1) {
+                guard !Task.isCancelled else { break }
                 countdownRemaining = remaining
                 onCountdownTick?(remaining)
                 overlay.update(remaining: remaining)
                 try? await Task.sleep(for: .seconds(1))
+            }
+            guard !Task.isCancelled else {
+                overlay.dismiss()
+                countdownOverlay = nil
+                isCountingDown = false
+                countdownRemaining = 0
+                return
             }
             countdownRemaining = 0
             isCountingDown = false
@@ -201,6 +214,7 @@ public final class CaptureCoordinator {
 
         } catch {
             Logger.capture.error("エリアキャプチャ失敗: \(error)")
+            onError?("エリアキャプチャに失敗しました")
             inlineAnnotate?.dismiss()
             inlineAnnotate = nil
             isCapturing = false
@@ -235,6 +249,7 @@ public final class CaptureCoordinator {
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("ウィンドウキャプチャ失敗: \(error)")
+            onError?("ウィンドウキャプチャに失敗しました")
         }
     }
 
@@ -264,6 +279,7 @@ public final class CaptureCoordinator {
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("フルスクリーンキャプチャ失敗: \(error)")
+            onError?("フルスクリーンキャプチャに失敗しました")
         }
     }
 
@@ -296,15 +312,35 @@ public final class CaptureCoordinator {
             )
 
             let image = try await captureService.captureArea(rect: sckRect, display: display)
-            let result = CaptureResult(image: image, mode: .ocr, captureRect: sckRect)
-            lastResult = result
 
             // OCR 実行してクリップボードにコピー
-            await OCRService.performOCRAndCopy(from: image)
+            let ocrResult = try await OCRService.recognizeText(from: image)
+            if !ocrResult.isEmpty {
+                let fullText: String
+                if ocrResult.barcodes.isEmpty {
+                    fullText = ocrResult.text
+                } else {
+                    let barcodeSection = ocrResult.barcodes.joined(separator: "\n")
+                    fullText = ocrResult.text.isEmpty
+                        ? barcodeSection
+                        : "\(ocrResult.text)\n\n--- Barcodes ---\n\(barcodeSection)"
+                }
+                await MainActor.run {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(fullText, forType: .string)
+                }
+            }
 
+            let result = CaptureResult(
+                image: image, mode: .ocr, captureRect: sckRect,
+                ocrText: ocrResult.text.isEmpty ? nil : ocrResult.text
+            )
+            lastResult = result
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("OCR キャプチャ失敗: \(error)")
+            onError?("OCR キャプチャに失敗しました")
         }
     }
 
@@ -368,6 +404,7 @@ public final class CaptureCoordinator {
             try await session.start()
         } catch {
             Logger.capture.error("録画開始失敗: \(error)")
+            onError?("画面録画の開始に失敗しました")
             isRecording = false
             recordingSession = nil
         }

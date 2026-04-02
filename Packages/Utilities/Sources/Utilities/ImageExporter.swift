@@ -25,6 +25,17 @@ public enum ImageExporter {
         let fileName = generateFileName(format: format)
         let fileURL = saveDir.appendingPathComponent(fileName)
 
+        // 保存先ディレクトリが存在しなければ作成
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: saveDir.path) {
+            do {
+                try fm.createDirectory(at: saveDir, withIntermediateDirectories: true)
+            } catch {
+                Logger.capture.error("保存先ディレクトリの作成に失敗: \(error)")
+                return nil
+            }
+        }
+
         guard let destination = CGImageDestinationCreateWithURL(
             fileURL as CFURL,
             format.utType.identifier as CFString,

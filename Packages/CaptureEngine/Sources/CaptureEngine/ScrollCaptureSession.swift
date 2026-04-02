@@ -22,6 +22,9 @@ public final class ScrollCaptureSession {
     /// フレーム取得時のコールバック（UI 更新用）
     public var onFrameCaptured: ((Int) -> Void)?
 
+    /// フレーム取得失敗時のコールバック
+    public var onFrameError: ((Error) -> Void)?
+
     private let captureService: ScreenCaptureServiceProtocol
     private var sckRect: CGRect?
     private var display: SCDisplay?
@@ -87,6 +90,7 @@ public final class ScrollCaptureSession {
             Logger.capture.info("スクロールキャプチャ: フレーム \(self.frames.count) 取得")
         } catch {
             Logger.capture.error("スクロールキャプチャフレーム失敗: \(error)")
+            onFrameError?(error)
         }
     }
 

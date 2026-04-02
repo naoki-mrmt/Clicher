@@ -40,6 +40,11 @@ public struct QuickAccessView: View {
                     onHoverChanged?($0)
                 }
 
+            // OCR テキストプレビュー
+            if let ocrText = result.ocrText {
+                ocrPreview(text: ocrText)
+            }
+
             // アクションバー
             if isHovering {
                 actionBar
@@ -79,6 +84,30 @@ public struct QuickAccessView: View {
             .padding(4)
             .opacity(isHovering ? 1 : 0)
         }
+    }
+
+    // MARK: - OCR Preview
+
+    private func ocrPreview(text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "text.viewfinder")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text("認識テキスト")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+
+            Text(text)
+                .font(.caption)
+                .lineLimit(4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.quaternary.opacity(0.3))
     }
 
     // MARK: - Action Bar

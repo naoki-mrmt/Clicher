@@ -157,6 +157,8 @@ private final class WindowSelectionWindow: NSWindow {
 
     private func hideHighlight() {
         highlightWindow?.orderOut(nil)
+        highlightWindow?.close()
+        highlightWindow = nil
     }
 
     private func finishSelection(_ window: SCWindow?) {

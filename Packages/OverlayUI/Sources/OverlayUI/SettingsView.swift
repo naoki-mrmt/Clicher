@@ -188,8 +188,12 @@ public struct SettingsView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
 
-        if panel.runModal() == .OK, let url = panel.url {
-            settings.saveDirectory = url
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                Task { @MainActor in
+                    settings.saveDirectory = url
+                }
+            }
         }
     }
 }

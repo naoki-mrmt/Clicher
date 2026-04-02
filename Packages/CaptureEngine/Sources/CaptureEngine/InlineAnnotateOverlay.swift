@@ -158,8 +158,8 @@ public final class InlineAnnotateOverlay {
     private func showToolbar(canvasRect: CGRect, document: AnnotateDocument, canvasView: AnnotateCanvasView) {
         let toolbarView = InlineToolbarView(
             document: document,
-            onUndo: { [weak canvasView] in document.undo(); canvasView?.needsDisplay = true },
-            onRedo: { [weak canvasView] in document.redo(); canvasView?.needsDisplay = true },
+            onUndo: { [weak document, weak canvasView] in document?.undo(); canvasView?.needsDisplay = true },
+            onRedo: { [weak document, weak canvasView] in document?.redo(); canvasView?.needsDisplay = true },
             onSave: { [weak self] in self?.handleSave() },
             onCancel: { [weak self] in self?.handleCancel() },
             onDone: { [weak self] in self?.handleDone() }

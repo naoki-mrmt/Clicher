@@ -17,12 +17,16 @@ struct ClicherApp: App {
     @State private var quickAccessOverlay = QuickAccessOverlay()
     @State private var annotateWindow = AnnotateWindow()
     @State private var floatingManager = FloatingScreenshotManager()
+    @State private var toastOverlay = ToastOverlay()
     @State private var presetStore: BrandPresetStore?
     @State private var isConfigured = false
 
     var body: some Scene {
-        // メニューバー
-        MenuBarExtra("Clicher", systemImage: "camera.viewfinder") {
+        // メニューバー（録画中はアイコン変更）
+        MenuBarExtra(
+            "Clicher",
+            systemImage: captureCoordinator.isRecording ? "record.circle" : "camera.viewfinder"
+        ) {
             MenuBarView(
                 appState: appState,
                 permissionManager: permissionManager,
@@ -68,6 +72,9 @@ struct ClicherApp: App {
             presetStore = BrandPresetStore()
         }
 
+        // Quick Access Overlay に設定を渡す
+        quickAccessOverlay.settings = appSettings
+
         // キャプチャ完了 → Quick Access Overlay を表示
         captureCoordinator.onCaptureComplete = { result in
             quickAccessOverlay.show(result: result)
@@ -103,6 +110,11 @@ struct ClicherApp: App {
                 captureCoordinator.cancelScrollCapture()
             }
             controls.show()
+        }
+
+        // エラー通知 → トースト表示
+        captureCoordinator.onError = { message in
+            toastOverlay.show(message, style: .error)
         }
 
         // Annotate 完了 → クリップボードにコピー

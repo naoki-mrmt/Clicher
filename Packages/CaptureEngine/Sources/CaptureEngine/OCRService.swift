@@ -25,33 +25,34 @@ public struct OCRResult: Sendable {
 
 /// Vision フレームワークを使った OCR サービス
 public enum OCRService {
-    /// 画像からテキストを認識
+    /// 画像からテキストを認識（バックグラウンドスレッドで実行）
     public static func recognizeText(
         from image: CGImage,
         languages: [String] = ["ja", "en"]
     ) async throws -> OCRResult {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.recognitionLanguages = languages
-        request.usesLanguageCorrection = true
+        try await Task.detached(priority: .userInitiated) {
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = languages
+            request.usesLanguageCorrection = true
 
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
+            let handler = VNImageRequestHandler(cgImage: image, options: [:])
+            try handler.perform([request])
 
-        let observations = request.results ?? []
-        let text = observations
-            .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: "\n")
+            let observations = request.results ?? []
+            let text = observations
+                .compactMap { $0.topCandidates(1).first?.string }
+                .joined(separator: "\n")
 
-        // バーコードも同時に検出
-        let barcodes = try await detectBarcodes(from: image)
+            let barcodes = try Self.detectBarcodesSync(from: image)
 
-        Logger.capture.info("OCR 完了: \(observations.count) 行検出")
-        return OCRResult(text: text, barcodes: barcodes)
+            Logger.capture.info("OCR 完了: \(observations.count) 行検出")
+            return OCRResult(text: text, barcodes: barcodes)
+        }.value
     }
 
-    /// 画像からバーコード/QRコードを検出
-    public static func detectBarcodes(from image: CGImage) async throws -> [String] {
+    /// 画像からバーコード/QRコードを検出（同期版、内部用）
+    private static func detectBarcodesSync(from image: CGImage) throws -> [String] {
         let request = VNDetectBarcodesRequest()
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
@@ -66,8 +67,14 @@ public enum OCRService {
         return values
     }
 
+    /// 画像からバーコード/QRコードを検出
+    public static func detectBarcodes(from image: CGImage) async throws -> [String] {
+        try await Task.detached(priority: .userInitiated) {
+            try Self.detectBarcodesSync(from: image)
+        }.value
+    }
+
     /// OCR + バーコード検出を実行し、結果をクリップボードにコピー
-    @MainActor
     public static func performOCRAndCopy(from image: CGImage) async {
         do {
             let result = try await recognizeText(from: image)
@@ -81,9 +88,11 @@ public enum OCRService {
                         ? barcodeSection
                         : "\(result.text)\n\n--- Barcodes ---\n\(barcodeSection)"
                 }
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(fullText, forType: .string)
+                await MainActor.run {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(fullText, forType: .string)
+                }
                 Logger.capture.info("OCR 結果をクリップボードにコピーしました")
             } else {
                 Logger.capture.info("OCR 結果が空です")

@@ -295,12 +295,22 @@ private final class AreaSelectionView: NSView {
         ]
 
         let textSize = sizeText.size(withAttributes: attributes)
-        let labelRect = NSRect(
-            x: rect.midX - textSize.width / 2 - 4,
-            y: rect.minY - textSize.height - 8,
-            width: textSize.width + 8,
-            height: textSize.height + 4
-        )
+        let labelWidth = textSize.width + 8
+        let labelHeight = textSize.height + 4
+
+        // デフォルトは選択範囲の下に配置
+        var labelX = rect.midX - labelWidth / 2
+        var labelY = rect.minY - labelHeight - 8
+
+        // 画面端で見切れる場合はクランプ
+        let viewBounds = bounds
+        if labelY < viewBounds.minY + 4 {
+            // 下に余白がなければ上に配置
+            labelY = rect.maxY + 8
+        }
+        labelX = max(viewBounds.minX + 4, min(labelX, viewBounds.maxX - labelWidth - 4))
+
+        let labelRect = NSRect(x: labelX, y: labelY, width: labelWidth, height: labelHeight)
 
         // 背景
         NSColor.black.withAlphaComponent(0.7).setFill()

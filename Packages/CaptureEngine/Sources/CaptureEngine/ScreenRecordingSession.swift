@@ -50,7 +50,7 @@ public final class ScreenRecordingSession {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let targetDisplay = display ?? content.displays.first else {
             Logger.capture.error("録画対象のディスプレイが見つかりません")
-            return
+            throw RecordingError.noDisplay
         }
 
         // 出力先
@@ -103,6 +103,13 @@ public final class ScreenRecordingSession {
         }
 
         writer.startWriting()
+
+        // AVAssetWriter のエラーチェック
+        if let error = writer.error {
+            Logger.capture.error("AVAssetWriter 開始失敗: \(error)")
+            throw RecordingError.writerFailed(error)
+        }
+
         writer.startSession(atSourceTime: .zero)
 
         self.assetWriter = writer
@@ -156,21 +163,29 @@ public final class ScreenRecordingSession {
         durationTimer?.cancel()
         durationTimer = nil
 
-        // SCStream 停止
-        if let stream {
+        // バックグラウンドスレッドからの書き込みを停止（stream 停止前に）
+        setLockedInputs(video: nil, audio: nil)
+
+        // SCStream 停止 & output 解除
+        if let stream, let handler = streamOutputHandler {
+            try? stream.removeStreamOutput(handler, type: .screen)
+            if capturesSystemAudio {
+                try? stream.removeStreamOutput(handler, type: .audio)
+            }
             try? await stream.stopCapture()
         }
         stream = nil
-
-        // バックグラウンドスレッドからの書き込みを停止（同期コンテキストで実行）
-        setLockedInputs(video: nil, audio: nil)
+        streamOutputHandler = nil
 
         // AVAssetWriter 完了
         videoInput?.markAsFinished()
         audioInput?.markAsFinished()
         await assetWriter?.finishWriting()
 
-        if let url = outputURL {
+        // finishWriting 後のエラーチェック
+        if let writer = assetWriter, writer.status == .failed {
+            Logger.capture.error("録画ファイルの書き込み失敗: \(writer.error?.localizedDescription ?? "不明")")
+        } else if let url = outputURL {
             onComplete?(url)
             Logger.capture.info("画面録画を停止: \(url.lastPathComponent) (\(Int(self.duration))秒)")
         }
@@ -179,7 +194,6 @@ public final class ScreenRecordingSession {
         videoInput = nil
         audioInput = nil
         adaptor = nil
-        streamOutputHandler = nil
     }
 
     /// ロック保護下の入力参照を設定（@MainActor の同期コンテキストから呼ぶ）
@@ -204,6 +218,22 @@ public final class ScreenRecordingSession {
         defer { writeLock.unlock() }
         guard let input = lockedAudioInput, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
+    }
+}
+
+// MARK: - Recording Errors
+
+public enum RecordingError: Error, LocalizedError {
+    case noDisplay
+    case writerFailed(Error)
+
+    public var errorDescription: String? {
+        switch self {
+        case .noDisplay:
+            return "録画対象のディスプレイが見つかりません"
+        case .writerFailed(let error):
+            return "録画の書き込みに失敗しました: \(error.localizedDescription)"
+        }
     }
 }
 
