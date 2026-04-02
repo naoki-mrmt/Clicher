@@ -65,6 +65,7 @@ public struct MenuBarView: View {
             .keyboardShortcut(",")
 
             Button("Clicher について") {
+                NSApplication.shared.activate(ignoringOtherApps: true)
                 NSApplication.shared.orderFrontStandardAboutPanel()
             }
 
