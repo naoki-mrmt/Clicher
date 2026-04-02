@@ -30,6 +30,7 @@ public enum WatermarkRenderer {
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
 
         // ロゴサイズ（元画像の15%幅を上限）
+        guard logoCGImage.width > 0, logoCGImage.height > 0 else { return image }
         let maxLogoWidth = CGFloat(width) * 0.15
         let logoScale = min(maxLogoWidth / CGFloat(logoCGImage.width), 1.0)
         let logoWidth = CGFloat(logoCGImage.width) * logoScale

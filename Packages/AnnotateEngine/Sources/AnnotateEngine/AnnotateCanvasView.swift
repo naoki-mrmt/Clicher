@@ -133,11 +133,12 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     }
 
     override public func mouseDragged(with event: NSEvent) {
+        guard let document else { return }
         let point = convert(event.locationInWindow, from: nil)
 
         // 選択中アイテムのドラッグ移動
         if isDraggingSelected, let selectedID = selectedItemID, let offset = dragOffset,
-           let item = document?.items.first(where: { $0.id == selectedID }) {
+           let item = document.items.first(where: { $0.id == selectedID }) {
             let dx = point.x - offset.x - item.startPoint.x
             let dy = point.y - offset.y - item.startPoint.y
             item.startPoint.x += dx

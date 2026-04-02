@@ -84,6 +84,8 @@ struct ClicherApp: App {
         quickAccessOverlay.onSave = { result in
             if let url = ImageExporter.saveToFile(result.image, directory: appSettings.saveDirectory) {
                 toastOverlay.show("保存しました: \(url.lastPathComponent)", style: .success, duration: 2)
+            } else {
+                toastOverlay.show("画像の保存に失敗しました", style: .error)
             }
         }
         quickAccessOverlay.onCopy = { result in

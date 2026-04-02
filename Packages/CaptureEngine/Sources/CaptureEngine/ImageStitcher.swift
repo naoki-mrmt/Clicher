@@ -14,7 +14,10 @@ public enum ImageStitcher {
         guard images.count > 1 else { return images.first }
 
         let width = images[0].width
-        let totalOverlap = overlap * (images.count - 1)
+        // overlap を画像サイズの半分以下にクランプ
+        let minHeight = images.map(\.height).min() ?? 0
+        let validOverlap = max(0, min(overlap, minHeight / 2))
+        let totalOverlap = validOverlap * (images.count - 1)
         let totalHeight = images.reduce(0) { $0 + $1.height } - totalOverlap
 
         guard let ctx = CGContext(
@@ -33,7 +36,7 @@ public enum ImageStitcher {
             currentY -= image.height
             let rect = CGRect(x: 0, y: currentY, width: width, height: image.height)
             ctx.draw(image, in: rect)
-            currentY += overlap // オーバーラップ分を戻す
+            currentY += validOverlap // オーバーラップ分を戻す
         }
 
         Logger.capture.info("画像スティッチ完了: \(images.count) フレーム → \(width)x\(totalHeight)")

@@ -34,7 +34,6 @@ public final class PreviewWindow {
         )
         window.title = "プレビュー"
         window.contentView = hostingView
-        window.isReleasedWhenClosed = false
         window.center()
 
         NSApp.activate(ignoringOtherApps: true)
@@ -48,6 +47,7 @@ public final class PreviewWindow {
 struct PreviewView: View {
     let image: NSImage
     @State private var scale: CGFloat = 1.0
+    @State private var baseScale: CGFloat = 1.0
 
     var body: some View {
         ScrollView([.horizontal, .vertical]) {
@@ -61,12 +61,17 @@ struct PreviewView: View {
         .onTapGesture(count: 2) {
             withAnimation(.easeInOut(duration: 0.2)) {
                 scale = scale > 1.0 ? 1.0 : 2.0
+                baseScale = scale
             }
         }
         .gesture(
             MagnifyGesture()
                 .onChanged { value in
-                    scale = max(0.5, min(5.0, value.magnification))
+                    scale = max(0.5, min(5.0, baseScale * value.magnification))
+                }
+                .onEnded { value in
+                    baseScale = max(0.5, min(5.0, baseScale * value.magnification))
+                    scale = baseScale
                 }
         )
     }

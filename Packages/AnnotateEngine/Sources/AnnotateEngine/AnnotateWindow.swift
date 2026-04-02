@@ -79,14 +79,16 @@ public final class AnnotateWindow {
     }
 
     private func exportAndClose(document: AnnotateDocument) {
-        var image = renderDocument(document)
+        guard var image = renderDocument(document) else {
+            Logger.capture.error("Annotate エクスポート失敗: renderDocument が nil")
+            close()
+            return
+        }
         // ウォーターマーク挿入
-        if let preset = defaultPreset, let img = image {
-            image = WatermarkRenderer.apply(to: img, preset: preset)
+        if let preset = defaultPreset {
+            image = WatermarkRenderer.apply(to: image, preset: preset) ?? image
         }
-        if let image {
-            onComplete?(image)
-        }
+        onComplete?(image)
         close()
     }
 

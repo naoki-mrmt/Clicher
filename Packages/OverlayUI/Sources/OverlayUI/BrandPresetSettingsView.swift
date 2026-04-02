@@ -149,9 +149,9 @@ public struct BrandPresetSettingsView: View {
             }
 
             Section("カラー") {
-                colorRow("プライマリ", color: preset.primaryColor)
-                colorRow("セカンダリ", color: preset.secondaryColor)
-                colorRow("アクセント", color: preset.accentColor)
+                colorPickerRow("プライマリ", preset: preset, keyPath: \.primaryColor)
+                colorPickerRow("セカンダリ", preset: preset, keyPath: \.secondaryColor)
+                colorPickerRow("アクセント", preset: preset, keyPath: \.accentColor)
             }
 
             Section("ロゴ") {
@@ -190,15 +190,24 @@ public struct BrandPresetSettingsView: View {
         .padding()
     }
 
-    private func colorRow(_ label: String, color: CodableColor) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Circle()
-                .fill(Color(cgColor: color.cgColor))
-                .frame(width: 20, height: 20)
-                .overlay(Circle().stroke(.quaternary))
-        }
+    private func colorPickerRow(_ label: String, preset: BrandPreset, keyPath: WritableKeyPath<BrandPreset, CodableColor>) -> some View {
+        let colorBinding = Binding<Color>(
+            get: {
+                Color(cgColor: preset[keyPath: keyPath].cgColor)
+            },
+            set: { newColor in
+                guard let index = presets.firstIndex(where: { $0.id == preset.id }) else { return }
+                guard let components = NSColor(newColor).cgColor.components, components.count >= 3 else { return }
+                presets[index][keyPath: keyPath] = CodableColor(
+                    red: components[0],
+                    green: components[1],
+                    blue: components[2],
+                    alpha: components.count >= 4 ? components[3] : 1.0
+                )
+                selectedPreset = presets[index]
+            }
+        )
+        return ColorPicker(label, selection: colorBinding)
     }
 
     // MARK: - Actions

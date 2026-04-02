@@ -187,6 +187,10 @@ public enum AnnotateRenderer {
         // 元画像のピクセルデータを取得してブロック平均色でモザイク描画
         let imgW = CGFloat(originalImage.width)
         let imgH = CGFloat(originalImage.height)
+        guard size.width > 0, size.height > 0 else {
+            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
+            return
+        }
         let scaleX = imgW / size.width
         let scaleY = imgH / size.height
 
@@ -231,6 +235,10 @@ public enum AnnotateRenderer {
             rOffset = 0; gOffset = 1; bOffset = 2
         }
 
+        guard cropW > 0, cropH > 0 else {
+            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
+            return
+        }
         let blockScaleX = CGFloat(cropW) / rect.width
         let blockScaleY = CGFloat(cropH) / rect.height
 
@@ -249,10 +257,13 @@ public enum AnnotateRenderer {
 
                 // ブロック内ピクセルの平均色を計算
                 var totalR = 0, totalG = 0, totalB = 0, count = 0
-                for py in stride(from: py0, to: py1, by: max(1, (py1 - py0) / 4)) {
-                    for px in stride(from: px0, to: px1, by: max(1, (px1 - px0) / 4)) {
+                let stepY = max(1, (py1 - py0) / 4)
+                let stepX = max(1, (px1 - px0) / 4)
+                for py in stride(from: py0, to: py1, by: stepY) {
+                    for px in stride(from: px0, to: px1, by: stepX) {
                         let offset = py * rowBytes + px * bpp
-                        guard offset + bOffset < CFDataGetLength(data) else { continue }
+                        let maxChannelOffset = max(rOffset, gOffset, bOffset)
+                        guard offset + maxChannelOffset < CFDataGetLength(data) else { continue }
                         totalR += Int(ptr[offset + rOffset])
                         totalG += Int(ptr[offset + gOffset])
                         totalB += Int(ptr[offset + bOffset])
