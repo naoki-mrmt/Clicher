@@ -19,12 +19,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState: AppState,
         captureCoordinator: CaptureCoordinator,
         permissionManager: PermissionManager,
+        appSettings: AppSettings,
         onCapture: @escaping (CaptureMode) -> Void
     ) {
         self.appState = appState
         self.captureCoordinator = captureCoordinator
         self.permissionManager = permissionManager
         self.onCapture = onCapture
+
+        // カスタムホットキー設定を適用
+        HotkeyManager.shared.configure(
+            keyCode: appSettings.hotkeyKeyCode,
+            modifiers: appSettings.hotkeyModifiers
+        )
 
         let hud = CaptureHUDWindow(appState: appState)
         hud.onModeSelected = onCapture

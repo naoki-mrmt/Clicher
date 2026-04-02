@@ -140,6 +140,7 @@ struct ClicherApp: App {
             appState: appState,
             captureCoordinator: captureCoordinator,
             permissionManager: permissionManager,
+            appSettings: appSettings,
             onCapture: handleCapture
         )
         permissionManager.checkAll()

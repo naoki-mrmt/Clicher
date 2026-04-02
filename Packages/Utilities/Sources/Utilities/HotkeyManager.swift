@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import OSLog
 
 /// グローバルホットキー管理
-/// `CGEvent.tapCreate` ベースで ⌘⇧A をシステム全体で監視する
+/// `CGEvent.tapCreate` ベースでカスタマイズ可能なホットキーをシステム全体で監視する
 @MainActor
 public final class HotkeyManager: @unchecked Sendable {
     public static let shared = HotkeyManager()
@@ -18,7 +18,21 @@ public final class HotkeyManager: @unchecked Sendable {
     /// callback は C function pointer でキャプチャ不可のため static 経由
     nonisolated(unsafe) private static var sharedEventTap: CFMachPort?
 
+    /// カスタムホットキー設定（static で callback からアクセス）
+    nonisolated(unsafe) private static var configuredKeyCode: Int64 = Int64(kVK_ANSI_A)
+    nonisolated(unsafe) private static var configuredModifiers: CGEventFlags = [.maskCommand, .maskShift]
+
     private init() {}
+
+    /// ホットキーのキー設定を更新
+    /// - Parameters:
+    ///   - keyCode: キーコード（Carbon kVK_* 定数）
+    ///   - modifiers: 修飾キーフラグ（CGEventFlags）
+    public func configure(keyCode: Int, modifiers: Int) {
+        HotkeyManager.configuredKeyCode = Int64(keyCode)
+        HotkeyManager.configuredModifiers = CGEventFlags(rawValue: UInt64(modifiers))
+        Logger.hotkey.info("ホットキー設定更新: keyCode=\(keyCode), modifiers=\(modifiers)")
+    }
 
     /// ホットキーの登録
     public func register() {
@@ -29,7 +43,6 @@ public final class HotkeyManager: @unchecked Sendable {
         // C function pointer — キャプチャ不可のため static 経由でアクセス
         let callback: CGEventTapCallBack = { _, type, event, _ in
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                // タップが無効化された場合は再有効化
                 if let tap = HotkeyManager.sharedEventTap {
                     CGEvent.tapEnable(tap: tap, enable: true)
                 }
@@ -43,16 +56,17 @@ public final class HotkeyManager: @unchecked Sendable {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             let flags = event.flags
 
-            // ⌘⇧A: keyCode 0 = 'A', flags に .maskCommand と .maskShift
-            let isCommand = flags.contains(.maskCommand)
-            let isShift = flags.contains(.maskShift)
-            let isA = keyCode == Int64(kVK_ANSI_A)
+            // カスタム設定されたキーと修飾キーをチェック
+            let targetModifiers = HotkeyManager.configuredModifiers
+            let targetKeyCode = HotkeyManager.configuredKeyCode
 
-            if isCommand && isShift && isA {
+            let modifiersMatch = flags.contains(targetModifiers)
+            let keyCodeMatch = keyCode == targetKeyCode
+
+            if modifiersMatch && keyCodeMatch {
                 Task { @MainActor in
                     HotkeyManager.shared.onHotkeyPressed?()
                 }
-                // イベントを消費（他アプリに渡さない）
                 return nil
             }
 
@@ -78,7 +92,7 @@ public final class HotkeyManager: @unchecked Sendable {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
 
-        Logger.hotkey.info("⌘⇧A ホットキーを登録しました")
+        Logger.hotkey.info("ホットキーを登録しました (keyCode=\(HotkeyManager.configuredKeyCode))")
     }
 
     /// ホットキーの解除
