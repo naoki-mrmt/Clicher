@@ -11,16 +11,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var hudWindow: CaptureHUDWindow?
     private var appState: AppState?
     private var captureCoordinator: CaptureCoordinator?
+    private var permissionManager: PermissionManager?
     private var onCapture: ((CaptureMode) -> Void)?
 
     /// 外部からセット（ClicherApp から呼ばれる）
     func configure(
         appState: AppState,
         captureCoordinator: CaptureCoordinator,
+        permissionManager: PermissionManager,
         onCapture: @escaping (CaptureMode) -> Void
     ) {
         self.appState = appState
         self.captureCoordinator = captureCoordinator
+        self.permissionManager = permissionManager
         self.onCapture = onCapture
 
         let hud = CaptureHUDWindow(appState: appState)
@@ -29,7 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // ⌘⇧A → Lark 風キャプチャ（画面暗転 + モードタブ + エリア選択）
         HotkeyManager.shared.onHotkeyPressed = { @MainActor [weak self] in
-            self?.captureCoordinator?.startCaptureWithModeBar()
+            guard let self, let pm = self.permissionManager else { return }
+            pm.checkScreenRecording()
+            guard pm.hasScreenRecordingPermission else {
+                pm.requestScreenRecording()
+                return
+            }
+            self.captureCoordinator?.startCaptureWithModeBar()
         }
     }
 
