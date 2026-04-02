@@ -93,10 +93,20 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     // MARK: - Scale Factor Helpers
 
     /// 指定矩形を含むスクリーンの backingScaleFactor を返す（マルチモニター対応）
+    /// rect は SCK 座標系（左上原点）の場合あり。x 座標の重なりで判定しつつフォールバックする
     @MainActor
     private static func scaleFactor(for rect: CGRect) -> CGFloat {
-        let screen = NSScreen.screens.first { $0.frame.intersects(rect) }
-        return screen?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        // まず正確な intersects で試行
+        if let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) {
+            return screen.backingScaleFactor
+        }
+        // SCK/macOS 座標系のずれで intersects が失敗する場合、x 範囲の重なりで判定
+        if let screen = NSScreen.screens.first(where: {
+            $0.frame.minX < rect.maxX && $0.frame.maxX > rect.minX
+        }) {
+            return screen.backingScaleFactor
+        }
+        return NSScreen.main?.backingScaleFactor ?? 2.0
     }
 
     /// ディスプレイサイズからスクリーンを特定して backingScaleFactor を返す

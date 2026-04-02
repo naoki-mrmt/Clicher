@@ -29,6 +29,7 @@ public final class CaptureCoordinator {
     public var onCountdownTick: ((Int) -> Void)?
 
     /// エラー発生時のコールバック（UI通知用）
+    /// メッセージにはユーザー向けの説明 + デバッグ用の詳細を含む
     public var onError: ((String) -> Void)?
 
     /// 録画中かどうか
@@ -214,7 +215,7 @@ public final class CaptureCoordinator {
 
         } catch {
             Logger.capture.error("エリアキャプチャ失敗: \(error)")
-            onError?("エリアキャプチャに失敗しました")
+            onError?("エリアキャプチャ失敗: \(error.localizedDescription)")
             inlineAnnotate?.dismiss()
             inlineAnnotate = nil
             isCapturing = false
@@ -249,7 +250,7 @@ public final class CaptureCoordinator {
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("ウィンドウキャプチャ失敗: \(error)")
-            onError?("ウィンドウキャプチャに失敗しました")
+            onError?("ウィンドウキャプチャ失敗: \(error.localizedDescription)")
         }
     }
 
@@ -279,7 +280,7 @@ public final class CaptureCoordinator {
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("フルスクリーンキャプチャ失敗: \(error)")
-            onError?("フルスクリーンキャプチャに失敗しました")
+            onError?("フルスクリーンキャプチャ失敗: \(error.localizedDescription)")
         }
     }
 
@@ -340,7 +341,7 @@ public final class CaptureCoordinator {
             onCaptureComplete?(result)
         } catch {
             Logger.capture.error("OCR キャプチャ失敗: \(error)")
-            onError?("OCR キャプチャに失敗しました")
+            onError?("OCR キャプチャ失敗: \(error.localizedDescription)")
         }
     }
 
@@ -404,7 +405,7 @@ public final class CaptureCoordinator {
             try await session.start()
         } catch {
             Logger.capture.error("録画開始失敗: \(error)")
-            onError?("画面録画の開始に失敗しました")
+            onError?("録画開始失敗: \(error.localizedDescription)")
             isRecording = false
             recordingSession = nil
         }

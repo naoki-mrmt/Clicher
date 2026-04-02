@@ -119,11 +119,12 @@ struct ToastView: View {
 
             Text(message)
                 .font(.callout)
-                .lineLimit(2)
+                .lineLimit(3)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 0.5))
+        .frame(maxWidth: 500)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.quaternary, lineWidth: 0.5))
     }
 }
