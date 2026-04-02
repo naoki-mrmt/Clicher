@@ -8,6 +8,9 @@ public struct PermissionGuideView: View {
     public let permissionManager: PermissionManager
     public var onDismiss: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
+    @State private var refreshTimer: Timer?
+
     public init(
         permissionManager: PermissionManager,
         onDismiss: @escaping () -> Void
@@ -55,8 +58,8 @@ public struct PermissionGuideView: View {
 
             // 続行ボタン
             Button {
-                permissionManager.checkAll()
                 onDismiss()
+                dismiss()
             } label: {
                 Text(allPermissionsGranted ? L10n.letsBegin : L10n.setUpLater)
                     .frame(maxWidth: .infinity)
@@ -69,6 +72,16 @@ public struct PermissionGuideView: View {
         .frame(width: 420, height: 480)
         .onAppear {
             permissionManager.checkAll()
+            // 定期的に権限状態を再チェック（Grant後にシステム設定から戻った時用）
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                Task { @MainActor in
+                    permissionManager.checkAll()
+                }
+            }
+        }
+        .onDisappear {
+            refreshTimer?.invalidate()
+            refreshTimer = nil
         }
     }
 

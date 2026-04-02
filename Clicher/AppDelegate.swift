@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import OSLog
 import SharedModels
 import Utilities
@@ -13,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var captureCoordinator: CaptureCoordinator?
     private var permissionManager: PermissionManager?
     private var onCapture: ((CaptureMode) -> Void)?
+
+    /// SwiftUI Window を開くためのコールバック（ClicherApp から設定）
+    var openPermissionGuide: (() -> Void)?
 
     /// 外部からセット（ClicherApp から呼ばれる）
     func configure(
@@ -51,9 +55,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         HotkeyManager.shared.register()
+
+        // 権限不足なら権限ガイドウィンドウを表示
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, let pm = self.permissionManager else { return }
+            pm.checkAll()
+            if !pm.hasScreenRecordingPermission || !pm.hasAccessibilityPermission {
+                self.showPermissionGuideWindow()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         HotkeyManager.shared.unregister()
+    }
+
+    // MARK: - Permission Guide Window (AppKit)
+
+    private var permissionGuideWindow: NSWindow?
+
+    private func showPermissionGuideWindow() {
+        guard let pm = permissionManager else { return }
+
+        let view = PermissionGuideView(
+            permissionManager: pm,
+            onDismiss: { [weak self] in
+                if pm.hasAccessibilityPermission {
+                    HotkeyManager.shared.register()
+                }
+                self?.permissionGuideWindow?.close()
+                self?.permissionGuideWindow = nil
+            }
+        )
+
+        let hostingView = NSHostingView(rootView: view)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: NSSize(width: 420, height: 480)),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Clicher"
+        window.contentView = hostingView
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        permissionGuideWindow = window
     }
 }

@@ -145,16 +145,6 @@ struct ClicherApp: App {
         )
         permissionManager.checkAll()
 
-        // 権限が不足していれば権限ガイドを表示
-        if !permissionManager.hasScreenRecordingPermission || !permissionManager.hasAccessibilityPermission {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if let app = NSApp {
-                    app.activate(ignoringOtherApps: true)
-                }
-                appState.isPermissionGuideVisible = true
-            }
-        }
-
         Logger.app.info("Clicher 初期化完了")
     }
 
