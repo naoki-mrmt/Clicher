@@ -15,21 +15,65 @@ public struct BrandPresetSettingsView: View {
     }
 
     public var body: some View {
-        HSplitView {
-            // プリセット一覧（左）
-            presetList
-                .frame(minWidth: 180, maxWidth: 220)
+        VStack(spacing: 0) {
+            // 機能説明ヘッダー
+            featureDescription
 
-            // 詳細/編集（右）
-            if let preset = selectedPreset {
-                presetDetail(preset)
-            } else {
-                Text("プリセットを選択してください")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
+
+            HSplitView {
+                // プリセット一覧（左）
+                presetList
+                    .frame(minWidth: 180, maxWidth: 220)
+
+                // 詳細/編集（右）
+                if let preset = selectedPreset {
+                    presetDetail(preset)
+                } else {
+                    emptyState
+                }
             }
         }
         .onAppear { presets = store.loadAll() }
+    }
+
+    // MARK: - Feature Description
+
+    private var featureDescription: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "paintpalette.fill")
+                .font(.title2)
+                .foregroundStyle(.tint)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("ブランドプリセット")
+                    .font(.headline)
+                Text("キャプチャにブランドカラー・ロゴを自動適用。チームで .clipreset ファイルを共有できます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "plus.circle.dashed")
+                .font(.system(size: 40))
+                .foregroundStyle(.tertiary)
+
+            Text("プリセットを選択または追加")
+                .foregroundStyle(.secondary)
+
+            Text("左下の + ボタンで新規作成\nまたは .clipreset ファイルをインポート")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Preset List

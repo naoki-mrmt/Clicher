@@ -12,6 +12,7 @@ public struct QuickAccessView: View {
     public let onHoverChanged: ((Bool) -> Void)?
 
     @State private var isHovering = false
+    @State private var showPreview = false
 
     public init(
         result: CaptureResult,
@@ -71,6 +72,12 @@ public struct QuickAccessView: View {
                 .frame(maxWidth: 240, maxHeight: 160)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(8)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showPreview = true
+                    PreviewWindow.show(image: result.nsImage)
+                }
+                .help("クリックでプレビュー拡大")
 
             // 閉じるボタン
             Button {

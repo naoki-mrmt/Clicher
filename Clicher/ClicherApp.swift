@@ -82,10 +82,13 @@ struct ClicherApp: App {
 
         // Quick Access Overlay のアクション
         quickAccessOverlay.onSave = { result in
-            _ = ImageExporter.saveToFile(result.image, directory: appSettings.saveDirectory)
+            if let url = ImageExporter.saveToFile(result.image, directory: appSettings.saveDirectory) {
+                toastOverlay.show("保存しました: \(url.lastPathComponent)", style: .success, duration: 2)
+            }
         }
         quickAccessOverlay.onCopy = { result in
             ImageExporter.copyToClipboard(result.image)
+            toastOverlay.show("コピーしました", style: .success, duration: 2)
         }
         quickAccessOverlay.onEdit = { result in
             annotateWindow.open(with: result)
