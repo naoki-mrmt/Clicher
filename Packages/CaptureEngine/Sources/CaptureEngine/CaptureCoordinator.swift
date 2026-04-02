@@ -186,6 +186,8 @@ public final class CaptureCoordinator {
                 height: macRect.height
             )
 
+            Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) sckRect=\(sckRect.debugDescription) screenH=\(screenHeight) display=\(display.width)x\(display.height)")
+
             let image = try await captureService.captureArea(rect: sckRect, display: display)
 
             // インラインアノテーションを表示（macOS 座標をそのまま渡す）
@@ -214,8 +216,9 @@ public final class CaptureCoordinator {
             overlay.show(image: image, screenRect: macRect)
 
         } catch {
-            Logger.capture.error("エリアキャプチャ失敗: \(error)")
-            onError?("エリアキャプチャ失敗: \(error.localizedDescription)")
+            let nsError = error as NSError
+            Logger.capture.error("エリアキャプチャ失敗: domain=\(nsError.domain) code=\(nsError.code) \(error)")
+            onError?("エリアキャプチャ失敗: [\(nsError.domain):\(nsError.code)] \(error.localizedDescription)")
             inlineAnnotate?.dismiss()
             inlineAnnotate = nil
             isCapturing = false
