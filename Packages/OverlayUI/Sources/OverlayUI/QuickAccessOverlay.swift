@@ -43,6 +43,14 @@ public final class QuickAccessOverlay {
             },
             onClose: { [weak self] in
                 self?.dismiss()
+            },
+            onHoverChanged: { [weak self] hovering in
+                if hovering {
+                    self?.autoCloseTask?.cancel()
+                    self?.autoCloseTask = nil
+                } else {
+                    self?.scheduleAutoClose(seconds: 5)
+                }
             }
         )
 
