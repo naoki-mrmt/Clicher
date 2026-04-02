@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import OSLog
+import SharedModels
 import Utilities
 
 /// 録画中インジケーター + 停止ボタン
@@ -80,7 +81,7 @@ struct RecordingIndicatorView: View {
                 .animation(.easeInOut(duration: 0.8).repeatForever(), value: isPulsing)
                 .onAppear { isPulsing = true }
 
-            Text("録画中")
+            Text(L10n.recording)
                 .font(.caption)
                 .fontWeight(.medium)
 

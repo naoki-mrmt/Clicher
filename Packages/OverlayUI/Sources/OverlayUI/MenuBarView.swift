@@ -8,17 +8,20 @@ public struct MenuBarView: View {
     public let permissionManager: PermissionManager
     public let loginItemManager: LoginItemManager
     public let onCapture: (CaptureMode) -> Void
+    public var onShowHistory: (() -> Void)?
 
     public init(
         appState: AppState,
         permissionManager: PermissionManager,
         loginItemManager: LoginItemManager,
-        onCapture: @escaping (CaptureMode) -> Void
+        onCapture: @escaping (CaptureMode) -> Void,
+        onShowHistory: (() -> Void)? = nil
     ) {
         self.appState = appState
         self.permissionManager = permissionManager
         self.loginItemManager = loginItemManager
         self.onCapture = onCapture
+        self.onShowHistory = onShowHistory
     }
 
     public var body: some View {
@@ -59,17 +62,25 @@ public struct MenuBarView: View {
             Divider()
 
             // 設定セクション
+            if let onShowHistory {
+                Button {
+                    onShowHistory()
+                } label: {
+                    Label(L10n.captureHistory, systemImage: "clock.arrow.circlepath")
+                }
+            }
+
             SettingsLink {
-                Label("設定...", systemImage: "gear")
+                Label(L10n.settings, systemImage: "gear")
             }
             .keyboardShortcut(",")
 
-            Button("Clicher について") {
+            Button(L10n.about) {
                 NSApplication.shared.activate(ignoringOtherApps: true)
                 NSApplication.shared.orderFrontStandardAboutPanel()
             }
 
-            Button("終了") {
+            Button(L10n.quit) {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")

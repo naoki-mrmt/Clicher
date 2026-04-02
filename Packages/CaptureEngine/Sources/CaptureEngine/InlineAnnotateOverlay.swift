@@ -431,7 +431,7 @@ struct InlineToolbarView: View {
                     .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
-            .help("保存")
+            .help(L10n.annotateSave)
 
             // キャンセル
             Button { onCancel() } label: {
@@ -440,7 +440,7 @@ struct InlineToolbarView: View {
                     .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
-            .help("キャンセル")
+            .help(L10n.annotateCancel)
 
             // 完了（コピー）
             Button { onDone() } label: {
@@ -450,7 +450,7 @@ struct InlineToolbarView: View {
                     .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
-            .help("クリップボードにコピー")
+            .help(L10n.annotateDone)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -476,12 +476,14 @@ struct ModeTabBarView: View {
     let selectedMode: CaptureMode
     let onModeSelected: (CaptureMode) -> Void
 
-    private let modes: [(CaptureMode, String)] = [
-        (.area, "スクリーンショット"),
-        (.scroll, "スクロールキャプチャ"),
-        (.recording, "画面収録"),
-        (.ocr, "テキストを認識"),
-    ]
+    private var modes: [(CaptureMode, String)] {
+        [
+            (.area, L10n.screenshot),
+            (.scroll, L10n.scrollCapture),
+            (.recording, L10n.screenRecording),
+            (.ocr, L10n.recognizeText),
+        ]
+    }
 
     var body: some View {
         HStack(spacing: 0) {

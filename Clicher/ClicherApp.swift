@@ -18,6 +18,7 @@ struct ClicherApp: App {
     @State private var annotateWindow = AnnotateWindow()
     @State private var floatingManager = FloatingScreenshotManager()
     @State private var toastOverlay = ToastOverlay()
+    @State private var historyStore = CaptureHistoryStore()
     @State private var presetStore: BrandPresetStore?
     @State private var isConfigured = false
 
@@ -27,15 +28,15 @@ struct ClicherApp: App {
             "Clicher",
             systemImage: captureCoordinator.isRecording ? "record.circle" : "camera.viewfinder"
         ) {
-            MenuBarView(
+            MenuBarContent(
                 appState: appState,
                 permissionManager: permissionManager,
                 loginItemManager: loginItemManager,
-                onCapture: handleCapture
+                onCapture: handleCapture,
+                historyStore: historyStore,
+                configureIfNeeded: configureIfNeeded,
+                isPermissionGuideVisible: $appState.isPermissionGuideVisible
             )
-            .onAppear {
-                configureIfNeeded()
-            }
         }
 
         // 設定ウィンドウ
@@ -48,11 +49,18 @@ struct ClicherApp: App {
             )
         }
 
+        // キャプチャ履歴ウィンドウ
+        Window("キャプチャ履歴", id: "capture-history") {
+            CaptureHistoryView(store: historyStore)
+        }
+        .windowResizability(.contentSize)
+
         // 権限ガイドウィンドウ
         Window("権限設定", id: "permission-guide") {
             PermissionGuideView(
                 permissionManager: permissionManager,
                 onDismiss: {
+                    appState.isPermissionGuideVisible = false
                     if permissionManager.hasAccessibilityPermission {
                         HotkeyManager.shared.register()
                     }
@@ -75,22 +83,23 @@ struct ClicherApp: App {
         // Quick Access Overlay に設定を渡す
         quickAccessOverlay.settings = appSettings
 
-        // キャプチャ完了 → Quick Access Overlay を表示
+        // キャプチャ完了 → Quick Access Overlay を表示 + 履歴に追加
         captureCoordinator.onCaptureComplete = { result in
             quickAccessOverlay.show(result: result)
+            historyStore.add(image: result.image, mode: result.mode)
         }
 
         // Quick Access Overlay のアクション
         quickAccessOverlay.onSave = { result in
             if let url = ImageExporter.saveToFile(result.image, directory: appSettings.saveDirectory) {
-                toastOverlay.show("保存しました: \(url.lastPathComponent)", style: .success, duration: 2)
+                toastOverlay.show(L10n.saved(url.lastPathComponent), style: .success, duration: 2)
             } else {
-                toastOverlay.show("画像の保存に失敗しました", style: .error)
+                toastOverlay.show(L10n.saveFailed, style: .error)
             }
         }
         quickAccessOverlay.onCopy = { result in
             ImageExporter.copyToClipboard(result.image)
-            toastOverlay.show("コピーしました", style: .success, duration: 2)
+            toastOverlay.show(L10n.copied, style: .success, duration: 2)
         }
         quickAccessOverlay.onEdit = { result in
             annotateWindow.open(with: result)
@@ -134,6 +143,17 @@ struct ClicherApp: App {
             onCapture: handleCapture
         )
         permissionManager.checkAll()
+
+        // 権限が不足していれば権限ガイドを表示
+        if !permissionManager.hasScreenRecordingPermission || !permissionManager.hasAccessibilityPermission {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if let app = NSApp {
+                    app.activate(ignoringOtherApps: true)
+                }
+                appState.isPermissionGuideVisible = true
+            }
+        }
+
         Logger.app.info("Clicher 初期化完了")
     }
 
@@ -146,5 +166,40 @@ struct ClicherApp: App {
 
         appState.selectedCaptureMode = mode
         captureCoordinator.startCapture(mode: mode, delay: appState.timerDelay)
+    }
+}
+
+// MARK: - Menu Bar Content (with @Environment access)
+
+private struct MenuBarContent: View {
+    let appState: AppState
+    let permissionManager: PermissionManager
+    let loginItemManager: LoginItemManager
+    let onCapture: (CaptureMode) -> Void
+    let historyStore: CaptureHistoryStore
+    let configureIfNeeded: () -> Void
+    @Binding var isPermissionGuideVisible: Bool
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        MenuBarView(
+            appState: appState,
+            permissionManager: permissionManager,
+            loginItemManager: loginItemManager,
+            onCapture: onCapture,
+            onShowHistory: {
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: "capture-history")
+            }
+        )
+        .onAppear {
+            configureIfNeeded()
+        }
+        .onChange(of: isPermissionGuideVisible) { _, visible in
+            if visible {
+                openWindow(id: "permission-guide")
+            }
+        }
     }
 }

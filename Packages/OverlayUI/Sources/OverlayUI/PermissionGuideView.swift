@@ -1,4 +1,5 @@
 import SwiftUI
+import SharedModels
 import Utilities
 
 /// 権限設定ガイド画面
@@ -22,11 +23,11 @@ public struct PermissionGuideView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.tint)
 
-            Text("Clicher を使うには権限が必要です")
+            Text(L10n.permissionsRequired)
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("スクリーンショットとグローバルホットキーを使用するために、以下の権限を許可してください。")
+            Text(L10n.permissionsDescription)
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -35,7 +36,7 @@ public struct PermissionGuideView: View {
             VStack(spacing: 16) {
                 permissionCard(
                     title: "Screen Recording",
-                    description: "画面の内容をキャプチャするために必要です",
+                    description: L10n.screenRecordingDesc,
                     systemImage: "rectangle.dashed.and.arrow.up",
                     isGranted: permissionManager.hasScreenRecordingPermission,
                     action: permissionManager.requestScreenRecording
@@ -43,7 +44,7 @@ public struct PermissionGuideView: View {
 
                 permissionCard(
                     title: "Accessibility",
-                    description: "グローバルホットキー (⌘⇧A) の動作に必要です",
+                    description: L10n.accessibilityDesc,
                     systemImage: "keyboard",
                     isGranted: permissionManager.hasAccessibilityPermission,
                     action: permissionManager.requestAccessibility
@@ -57,7 +58,7 @@ public struct PermissionGuideView: View {
                 permissionManager.checkAll()
                 onDismiss()
             } label: {
-                Text(allPermissionsGranted ? "始める" : "あとで設定する")
+                Text(allPermissionsGranted ? L10n.letsBegin : L10n.setUpLater)
                     .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
@@ -103,7 +104,7 @@ public struct PermissionGuideView: View {
                     .foregroundStyle(.green)
                     .font(.title3)
             } else {
-                Button("許可") {
+                Button(L10n.grant) {
                     action()
                 }
                 .controlSize(.small)

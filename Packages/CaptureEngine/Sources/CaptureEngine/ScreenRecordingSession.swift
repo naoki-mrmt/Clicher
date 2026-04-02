@@ -44,7 +44,10 @@ public final class ScreenRecordingSession {
     public init() {}
 
     /// 録画を開始
-    public func start(display: SCDisplay? = nil) async throws {
+    /// - Parameters:
+    ///   - display: 対象ディスプレイ（nil でメインディスプレイ）
+    ///   - sourceRect: 録画範囲（nil でフルスクリーン、SCK 座標系）
+    public func start(display: SCDisplay? = nil, sourceRect: CGRect? = nil) async throws {
         guard !isRecording else { return }
 
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -122,8 +125,14 @@ public final class ScreenRecordingSession {
         // SCStream セットアップ
         let filter = SCContentFilter(display: targetDisplay, excludingWindows: [])
         let config = SCStreamConfiguration()
-        config.width = width
-        config.height = height
+        if let sourceRect {
+            config.sourceRect = sourceRect
+            config.width = Int(sourceRect.width * scaleFactor)
+            config.height = Int(sourceRect.height * scaleFactor)
+        } else {
+            config.width = width
+            config.height = height
+        }
         config.showsCursor = true
         config.minimumFrameInterval = CMTime(value: 1, timescale: 30) // 30fps
         config.pixelFormat = kCVPixelFormatType_32BGRA

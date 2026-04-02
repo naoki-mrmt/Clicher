@@ -9,6 +9,7 @@ public struct BrandPresetSettingsView: View {
     @State private var presets: [BrandPreset] = []
     @State private var selectedPreset: BrandPreset?
     @State private var isEditing = false
+    @State private var errorMessage: String?
 
     public init(store: BrandPresetStore) {
         self.store = store
@@ -35,6 +36,14 @@ public struct BrandPresetSettingsView: View {
             }
         }
         .onAppear { presets = store.loadAll() }
+        .alert("エラー", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 
     // MARK: - Feature Description
@@ -46,9 +55,9 @@ public struct BrandPresetSettingsView: View {
                 .foregroundStyle(.tint)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("ブランドプリセット")
+                Text(L10n.brandPresets)
                     .font(.headline)
-                Text("キャプチャにブランドカラー・ロゴを自動適用。チームで .clipreset ファイルを共有できます。")
+                Text(L10n.brandDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -65,10 +74,10 @@ public struct BrandPresetSettingsView: View {
                 .font(.system(size: 40))
                 .foregroundStyle(.tertiary)
 
-            Text("プリセットを選択または追加")
+            Text(L10n.selectOrAddPreset)
                 .foregroundStyle(.secondary)
 
-            Text("左下の + ボタンで新規作成\nまたは .clipreset ファイルをインポート")
+            Text(L10n.addPresetHint)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -214,20 +223,32 @@ public struct BrandPresetSettingsView: View {
 
     private func addPreset() {
         let preset = BrandPreset(name: "新規プリセット \(presets.count + 1)")
-        try? store.save(preset)
-        presets = store.loadAll()
-        selectedPreset = preset
+        do {
+            try store.save(preset)
+            presets = store.loadAll()
+            selectedPreset = preset
+        } catch {
+            errorMessage = "プリセットの作成に失敗しました: \(error.localizedDescription)"
+        }
     }
 
     private func deletePreset(_ preset: BrandPreset) {
-        try? store.delete(preset)
-        presets = store.loadAll()
-        selectedPreset = nil
+        do {
+            try store.delete(preset)
+            presets = store.loadAll()
+            selectedPreset = nil
+        } catch {
+            errorMessage = "プリセットの削除に失敗しました: \(error.localizedDescription)"
+        }
     }
 
     private func savePreset(_ preset: BrandPreset) {
-        try? store.save(preset)
-        presets = store.loadAll()
+        do {
+            try store.save(preset)
+            presets = store.loadAll()
+        } catch {
+            errorMessage = "プリセットの保存に失敗しました: \(error.localizedDescription)"
+        }
     }
 
     private func importPreset() {
@@ -235,10 +256,16 @@ public struct BrandPresetSettingsView: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
 
-        if panel.runModal() == .OK, let url = panel.url {
-            if let imported = try? store.importFromClipreset(at: url) {
-                presets = store.loadAll()
-                selectedPreset = imported
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                do {
+                    let imported = try store.importFromClipreset(at: url)
+                    presets = store.loadAll()
+                    selectedPreset = imported
+                } catch {
+                    errorMessage = "インポートに失敗しました: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -248,8 +275,15 @@ public struct BrandPresetSettingsView: View {
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "\(preset.name).clipreset"
 
-        if panel.runModal() == .OK, let url = panel.url {
-            try? store.exportToClipreset(preset, to: url)
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                do {
+                    try store.exportToClipreset(preset, to: url)
+                } catch {
+                    errorMessage = "エクスポートに失敗しました: \(error.localizedDescription)"
+                }
+            }
         }
     }
 

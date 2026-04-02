@@ -44,6 +44,18 @@ public final class AppSettings {
         didSet { save("overlayAutoCloseSeconds", value: overlayAutoCloseSeconds) }
     }
 
+    // MARK: - Hotkey Settings
+
+    /// グローバルホットキーの修飾キー（デフォルト: ⌘⇧）
+    public var hotkeyModifiers: Int {
+        didSet { save("hotkeyModifiers", value: hotkeyModifiers) }
+    }
+
+    /// グローバルホットキーのキーコード（デフォルト: 0 = A）
+    public var hotkeyKeyCode: Int {
+        didSet { save("hotkeyKeyCode", value: hotkeyKeyCode) }
+    }
+
     // MARK: - Launch Settings
 
     /// ログイン時に起動するか
@@ -84,6 +96,11 @@ public final class AppSettings {
             rawValue: defaults.string(forKey: "overlayPosition") ?? ""
         ) ?? .bottomRight
         self.overlayAutoCloseSeconds = defaults.object(forKey: "overlayAutoCloseSeconds") as? Int ?? 5
+
+        // Hotkey（デフォルト: ⌘⇧A = modifiers Command+Shift, keyCode 0）
+        self.hotkeyModifiers = defaults.object(forKey: "hotkeyModifiers") as? Int
+            ?? (Int(CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue))
+        self.hotkeyKeyCode = defaults.object(forKey: "hotkeyKeyCode") as? Int ?? 0
 
         // Launch
         self.launchAtLogin = defaults.bool(forKey: "launchAtLogin")

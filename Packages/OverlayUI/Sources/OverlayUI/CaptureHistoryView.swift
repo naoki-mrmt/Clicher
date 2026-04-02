@@ -27,7 +27,7 @@ public struct CaptureHistoryView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.largeTitle)
                         .foregroundStyle(.quaternary)
-                    Text("履歴を選択")
+                    Text(L10n.selectHistory)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -47,18 +47,10 @@ public struct CaptureHistoryView: View {
             )) {
                 ForEach(entries) { entry in
                     HStack(spacing: 8) {
-                        // サムネイル
-                        if let thumbnail = store.loadThumbnail(for: entry) {
-                            Image(nsImage: thumbnail)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 40, height: 30)
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                        } else {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(.quaternary)
-                                .frame(width: 40, height: 30)
-                        }
+                        // サムネイル（非同期読み込み）
+                        AsyncThumbnailView(store: store, entry: entry)
+                            .frame(width: 40, height: 30)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.mode)
@@ -76,11 +68,11 @@ public struct CaptureHistoryView: View {
             Divider()
 
             HStack {
-                Text("\(entries.count) 件")
+                Text(L10n.itemCount(entries.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("全削除") {
+                Button(L10n.clearAll) {
                     store.clearAll()
                     entries = store.allEntries()
                     selectedEntry = nil
@@ -97,22 +89,19 @@ public struct CaptureHistoryView: View {
 
     private func previewPanel(_ entry: CaptureHistoryEntry) -> some View {
         VStack(spacing: 12) {
-            // サムネイルプレビュー
-            if let thumbnail = store.loadThumbnail(for: entry) {
-                Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxHeight: 300)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
+            // サムネイルプレビュー（非同期読み込み）
+            AsyncThumbnailView(store: store, entry: entry)
+                .aspectRatio(contentMode: .fit)
+                .frame(maxHeight: 300)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
 
             // メタデータ
             VStack(alignment: .leading, spacing: 4) {
-                LabeledContent("モード", value: entry.mode)
-                LabeledContent("サイズ", value: entry.sizeLabel)
-                LabeledContent("日時", value: entry.formattedDate)
+                LabeledContent(L10n.mode, value: entry.mode)
+                LabeledContent(L10n.size, value: entry.sizeLabel)
+                LabeledContent(L10n.dateTime, value: entry.formattedDate)
                 if let path = entry.filePath {
-                    LabeledContent("ファイル", value: URL(fileURLWithPath: path).lastPathComponent)
+                    LabeledContent(L10n.file, value: URL(fileURLWithPath: path).lastPathComponent)
                 }
             }
             .font(.caption)
@@ -122,7 +111,7 @@ public struct CaptureHistoryView: View {
             // アクション
             HStack {
                 if let path = entry.filePath {
-                    Button("Finder で表示") {
+                    Button(L10n.showInFinder) {
                         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
                     }
                     .controlSize(.small)
@@ -130,7 +119,7 @@ public struct CaptureHistoryView: View {
 
                 Spacer()
 
-                Button("削除") {
+                Button(L10n.delete) {
                     store.delete(entry)
                     entries = store.allEntries()
                     selectedEntry = nil
@@ -140,5 +129,29 @@ public struct CaptureHistoryView: View {
             }
         }
         .padding()
+    }
+}
+
+// MARK: - Async Thumbnail
+
+private struct AsyncThumbnailView: View {
+    let store: CaptureHistoryStore
+    let entry: CaptureHistoryEntry
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(.quaternary)
+            }
+        }
+        .task {
+            image = store.loadThumbnail(for: entry)
+        }
     }
 }

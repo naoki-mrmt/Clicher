@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import OSLog
+import SharedModels
 import Utilities
 
 /// スクロールキャプチャ操作パネル
@@ -82,16 +83,16 @@ struct ScrollCaptureControlsView: View {
     var body: some View {
         HStack(spacing: 12) {
             // フレーム数
-            Text("\(frameCount()) フレーム")
+            Text(L10n.frameCount(frameCount()))
                 .font(.caption)
                 .monospacedDigit()
-                .frame(width: 70)
+                .frame(width: 80)
 
             // 次のフレームをキャプチャ
             Button {
                 onCaptureFrame()
             } label: {
-                Label("キャプチャ", systemImage: "camera")
+                Label(L10n.captureFrame, systemImage: "camera")
                     .font(.caption)
             }
             .controlSize(.small)
@@ -101,7 +102,7 @@ struct ScrollCaptureControlsView: View {
             Button {
                 onFinish()
             } label: {
-                Label("完了", systemImage: "checkmark")
+                Label(L10n.done, systemImage: "checkmark")
                     .font(.caption)
             }
             .controlSize(.small)

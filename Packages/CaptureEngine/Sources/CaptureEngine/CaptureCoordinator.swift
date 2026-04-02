@@ -392,6 +392,20 @@ public final class CaptureCoordinator {
     // MARK: - Screen Recording
 
     private func startRecording() async {
+        // エリア選択（キャンセルでフルスクリーン録画）
+        let areaRect = await AreaSelectionOverlay.selectArea()
+        var sckRect: CGRect?
+
+        if let macRect = areaRect {
+            let screenHeight = NSScreen.main?.frame.height ?? 900
+            sckRect = CGRect(
+                x: macRect.origin.x,
+                y: screenHeight - macRect.origin.y - macRect.height,
+                width: macRect.width,
+                height: macRect.height
+            )
+        }
+
         isRecording = true
 
         let session = ScreenRecordingSession()
@@ -402,7 +416,7 @@ public final class CaptureCoordinator {
         recordingSession = session
 
         do {
-            try await session.start()
+            try await session.start(sourceRect: sckRect)
         } catch {
             Logger.capture.error("録画開始失敗: \(error)")
             onError?("録画開始失敗: \(error.localizedDescription)")

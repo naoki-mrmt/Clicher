@@ -25,24 +25,24 @@ public struct SettingsView: View {
         TabView {
             generalTab
                 .tabItem {
-                    Label("一般", systemImage: "gear")
+                    Label(L10n.general, systemImage: "gear")
                 }
 
             captureTab
                 .tabItem {
-                    Label("キャプチャ", systemImage: "camera")
+                    Label(L10n.captureSettings, systemImage: "camera")
                 }
 
             if let presetStore {
                 BrandPresetSettingsView(store: presetStore)
                     .tabItem {
-                        Label("ブランド", systemImage: "paintpalette")
+                        Label(L10n.brand, systemImage: "paintpalette")
                     }
             }
 
             permissionTab
                 .tabItem {
-                    Label("権限", systemImage: "lock.shield")
+                    Label(L10n.permissions, systemImage: "lock.shield")
                 }
         }
         .frame(width: 560, height: 400)
@@ -52,29 +52,26 @@ public struct SettingsView: View {
 
     private var generalTab: some View {
         Form {
-            // 保存先
-            LabeledContent("保存先") {
+            LabeledContent(L10n.saveDirectory) {
                 HStack {
                     Text(settings.saveDirectory.path)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .frame(maxWidth: 200, alignment: .leading)
 
-                    Button("変更...") {
+                    Button(L10n.change) {
                         chooseSaveDirectory()
                     }
                 }
             }
 
-            // ファイル名
-            Picker("ファイル名", selection: Bindable(settings).fileNamePattern) {
+            Picker(L10n.fileName, selection: Bindable(settings).fileNamePattern) {
                 ForEach(FileNamePattern.allCases) { pattern in
                     Text(pattern.label).tag(pattern)
                 }
             }
 
-            // 画像フォーマット
-            Picker("画像形式", selection: Bindable(settings).imageFormat) {
+            Picker(L10n.imageFormat, selection: Bindable(settings).imageFormat) {
                 ForEach(ImageFormat.allCases) { format in
                     Text(format.label).tag(format)
                 }
@@ -82,8 +79,7 @@ public struct SettingsView: View {
 
             Divider()
 
-            // ログイン時起動
-            Toggle("ログイン時に起動", isOn: Binding(
+            Toggle(L10n.launchAtLogin, isOn: Binding(
                 get: { loginItemManager.isEnabled },
                 set: { _ in loginItemManager.toggle() }
             ))
@@ -95,28 +91,26 @@ public struct SettingsView: View {
 
     private var captureTab: some View {
         Form {
-            // Retina
-            Toggle("Retina 解像度でキャプチャ (2x)", isOn: Bindable(settings).captureRetina)
+            Toggle(L10n.retinaCapture, isOn: Bindable(settings).captureRetina)
 
             Divider()
 
-            // Overlay
             Section("Quick Access Overlay") {
-                Picker("表示位置", selection: Bindable(settings).overlayPosition) {
+                Picker(L10n.overlayPosition, selection: Bindable(settings).overlayPosition) {
                     ForEach(OverlayPosition.allCases) { position in
                         Text(position.label).tag(position)
                     }
                 }
 
                 Stepper(
-                    "自動クローズ: \(settings.overlayAutoCloseSeconds)秒",
+                    L10n.autoCloseSeconds(settings.overlayAutoCloseSeconds),
                     value: Bindable(settings).overlayAutoCloseSeconds,
                     in: 0...30,
                     step: 1
                 )
 
                 if settings.overlayAutoCloseSeconds == 0 {
-                    Text("自動クローズは無効です")
+                    Text(L10n.autoCloseDisabled)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -131,14 +125,14 @@ public struct SettingsView: View {
         Form {
             permissionRow(
                 title: "Screen Recording",
-                description: "画面のキャプチャに必要",
+                description: L10n.screenRecordingDesc,
                 isGranted: permissionManager.hasScreenRecordingPermission,
                 action: permissionManager.openScreenRecordingSettings
             )
 
             permissionRow(
                 title: "Accessibility",
-                description: "グローバルホットキー (⌘⇧A) に必要",
+                description: L10n.accessibilityDesc,
                 isGranted: permissionManager.hasAccessibilityPermission,
                 action: permissionManager.openAccessibilitySettings
             )
@@ -167,11 +161,11 @@ public struct SettingsView: View {
             Spacer()
 
             if isGranted {
-                Label("許可済み", systemImage: "checkmark.circle.fill")
+                Label(L10n.granted, systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.caption)
             } else {
-                Button("システム設定を開く") {
+                Button(L10n.openSystemSettings) {
                     action()
                 }
                 .controlSize(.small)

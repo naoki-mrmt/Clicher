@@ -96,6 +96,16 @@ private final class AreaSelectionWindow: NSWindow {
             if let view = selectionView {
                 view.confirmSelection()
             }
+            return
+        }
+        // 矢印キーで選択範囲を微調整（Shift で 10px）
+        let step: CGFloat = event.modifierFlags.contains(.shift) ? 10 : 1
+        switch event.keyCode {
+        case 123: selectionView?.nudgeSelection(dx: -step, dy: 0) // ←
+        case 124: selectionView?.nudgeSelection(dx: step, dy: 0)  // →
+        case 125: selectionView?.nudgeSelection(dx: 0, dy: step)  // ↓ (flipped)
+        case 126: selectionView?.nudgeSelection(dx: 0, dy: -step) // ↑ (flipped)
+        default: break
         }
     }
 }
@@ -183,7 +193,18 @@ private final class AreaSelectionView: NSView {
 
         switch phase {
         case .drawing:
-            currentPoint = point
+            // Shift で正方形に制約
+            if event.modifierFlags.contains(.shift), let start = startPoint {
+                let dx = point.x - start.x
+                let dy = point.y - start.y
+                let side = max(abs(dx), abs(dy))
+                currentPoint = NSPoint(
+                    x: start.x + (dx >= 0 ? side : -side),
+                    y: start.y + (dy >= 0 ? side : -side)
+                )
+            } else {
+                currentPoint = point
+            }
 
         case .adjusting:
             // 選択範囲を移動
@@ -224,6 +245,16 @@ private final class AreaSelectionView: NSView {
         case .idle:
             break
         }
+        needsDisplay = true
+    }
+
+    /// 矢印キーで選択範囲を移動
+    fileprivate func nudgeSelection(dx: CGFloat, dy: CGFloat) {
+        guard startPoint != nil, currentPoint != nil else { return }
+        startPoint?.x += dx
+        startPoint?.y += dy
+        currentPoint?.x += dx
+        currentPoint?.y += dy
         needsDisplay = true
     }
 

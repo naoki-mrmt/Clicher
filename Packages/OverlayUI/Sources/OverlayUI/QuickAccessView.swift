@@ -75,7 +75,7 @@ public struct QuickAccessView: View {
                 .onTapGesture {
                     PreviewWindow.show(image: result.nsImage)
                 }
-                .help("クリックでプレビュー拡大")
+                .help(L10n.clickToPreview)
 
             // 閉じるボタン
             Button {
@@ -99,7 +99,7 @@ public struct QuickAccessView: View {
                 Image(systemName: "text.viewfinder")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text("認識テキスト")
+                Text(L10n.recognizedText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -119,19 +119,19 @@ public struct QuickAccessView: View {
 
     private var actionBar: some View {
         HStack(spacing: 12) {
-            actionButton(title: "保存", systemImage: "square.and.arrow.down") {
+            actionButton(title: L10n.save, systemImage: "square.and.arrow.down") {
                 onSave()
             }
 
-            actionButton(title: "コピー", systemImage: "doc.on.doc") {
+            actionButton(title: L10n.copy, systemImage: "doc.on.doc") {
                 onCopy()
             }
 
-            actionButton(title: "編集", systemImage: "pencil") {
+            actionButton(title: L10n.edit, systemImage: "pencil") {
                 onEdit()
             }
 
-            actionButton(title: "ピン留め", systemImage: "pin") {
+            actionButton(title: L10n.pin, systemImage: "pin") {
                 onPin()
             }
         }
