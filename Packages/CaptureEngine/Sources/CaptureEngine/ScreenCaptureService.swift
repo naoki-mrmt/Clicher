@@ -6,8 +6,8 @@ import Utilities
 /// ScreenCaptureKit を使ったキャプチャサービス
 /// Protocol で抽象化し、テスト時にモック可能にする
 public protocol ScreenCaptureServiceProtocol: Sendable {
-    /// エリアキャプチャ（指定範囲）
-    func captureArea(rect: CGRect, display: SCDisplay) async throws -> CGImage
+    /// エリアキャプチャ（macOS スクリーン座標・左下原点）
+    func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage
 
     /// ウィンドウキャプチャ
     func captureWindow(_ window: SCWindow) async throws -> CGImage
@@ -23,35 +23,35 @@ public protocol ScreenCaptureServiceProtocol: Sendable {
 public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable {
     public init() {}
 
-    public func captureArea(rect: CGRect, display: SCDisplay) async throws -> CGImage {
+    public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
         // フルスクリーンキャプチャ → CGImage クロップ方式
-        // sourceRect + width/height の組み合わせは SCStreamErrorDomain:-3 を引き起こすため回避
         let fullImage = try await captureDisplay(display: display, showsCursor: false)
 
         let imgW = CGFloat(fullImage.width)
         let imgH = CGFloat(fullImage.height)
 
-        // rect は NSScreen 座標空間（ディスプレイスケーリング適用済み）で渡される
-        // NSScreen.frame と display.width/height が異なる場合（「スペースを拡大」等）に対応するため
-        // NSScreen のサイズを基準にピクセル変換する
-        let displayW = CGFloat(display.width)
-        let displayH = CGFloat(display.height)
+        // macOS 座標（左下原点）→ CGImage ピクセル座標（左上原点）に直接変換
+        // NSScreen.frame.size を基準にすることで、ディスプレイスケーリングにも対応
         let screenSize = await MainActor.run {
-            NSScreen.main?.frame.size ?? CGSize(width: displayW, height: displayH)
+            NSScreen.main?.frame.size ?? CGSize(width: imgW, height: imgH)
         }
 
         let toPixelX = imgW / screenSize.width
         let toPixelY = imgH / screenSize.height
 
-        Logger.capture.info("エリアクロップ: rect=\(rect.debugDescription) image=\(fullImage.width)x\(fullImage.height) screen=\(screenSize.debugDescription) display=\(display.width)x\(display.height) toPixel=\(toPixelX)x\(toPixelY)")
+        // macOS 左下原点 → CGImage 左上原点: y を反転
+        let flippedY = screenSize.height - macRect.origin.y - macRect.height
 
-        // NSScreen 座標 → ピクセル座標に変換し、整数に丸めて画像境界にクランプ
         let rawRect = CGRect(
-            x: rect.origin.x * toPixelX,
-            y: rect.origin.y * toPixelY,
-            width: rect.width * toPixelX,
-            height: rect.height * toPixelY
+            x: macRect.origin.x * toPixelX,
+            y: flippedY * toPixelY,
+            width: macRect.width * toPixelX,
+            height: macRect.height * toPixelY
         )
+
+        Logger.capture.info("エリアクロップ: macRect=\(macRect.debugDescription) flippedY=\(flippedY) image=\(fullImage.width)x\(fullImage.height) screen=\(screenSize.debugDescription) rawRect=\(rawRect.debugDescription)")
+
+        // 整数に丸めて画像境界にクランプ
         let imageBounds = CGRect(x: 0, y: 0, width: imgW, height: imgH)
         let pixelRect = rawRect.integral.intersection(imageBounds)
 
@@ -71,7 +71,6 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
 
-        // width/height はポイント単位で指定、captureResolution = .best が Retina を自動処理
         config.width = Int(window.frame.width)
         config.height = Int(window.frame.height)
         config.showsCursor = false

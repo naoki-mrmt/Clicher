@@ -55,19 +55,12 @@ public final class ScrollCaptureSession {
             }
             display = disp
 
-            // macOS → SCK 座標変換
-            let screenHeight = NSScreen.main?.frame.height ?? CGFloat(disp.height)
-            let convertedRect = CGRect(
-                x: macRect.origin.x,
-                y: screenHeight - macRect.origin.y - macRect.height,
-                width: macRect.width,
-                height: macRect.height
-            )
-            sckRect = convertedRect
+            // macOS 座標をそのまま保存（座標変換は captureArea 内で行う）
+            sckRect = macRect
 
             // 初回フレームをキャプチャ
             nonisolated(unsafe) let unsafeDisp = disp
-            let firstFrame = try await captureService.captureArea(rect: convertedRect, display: unsafeDisp)
+            let firstFrame = try await captureService.captureArea(macRect: macRect, display: unsafeDisp)
             frames.append(firstFrame)
             onFrameCaptured?(frames.count)
 
@@ -84,7 +77,7 @@ public final class ScrollCaptureSession {
 
         do {
             nonisolated(unsafe) let unsafeDisp = disp
-            let frame = try await captureService.captureArea(rect: rect, display: unsafeDisp)
+            let frame = try await captureService.captureArea(macRect: rect, display: unsafeDisp)
             frames.append(frame)
             onFrameCaptured?(frames.count)
             Logger.capture.info("スクロールキャプチャ: フレーム \(self.frames.count) 取得")

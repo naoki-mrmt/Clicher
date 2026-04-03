@@ -177,24 +177,16 @@ public final class CaptureCoordinator {
                 return
             }
 
-            // macOS 座標（左下原点）→ SCK 座標（左上原点）に変換（キャプチャ用）
-            let screenHeight = NSScreen.main?.frame.height ?? CGFloat(display.height)
-            let sckRect = CGRect(
-                x: macRect.origin.x,
-                y: screenHeight - macRect.origin.y - macRect.height,
-                width: macRect.width,
-                height: macRect.height
-            )
+            Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) display=\(display.width)x\(display.height)")
 
-            Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) sckRect=\(sckRect.debugDescription) screenH=\(screenHeight) display=\(display.width)x\(display.height)")
-
-            let image = try await captureService.captureArea(rect: sckRect, display: display)
+            // macOS 座標をそのまま渡す（座標変換は captureArea 内で行う）
+            let image = try await captureService.captureArea(macRect: macRect, display: display)
 
             // インラインアノテーションを表示（macOS 座標をそのまま渡す）
             let overlay = inlineAnnotate ?? InlineAnnotateOverlay()
             overlay.onComplete = { [weak self] editedImage in
                 guard let self else { return }
-                let result = CaptureResult(image: editedImage, mode: .area, captureRect: sckRect)
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: macRect)
                 lastResult = result
                 onCaptureComplete?(result)
                 inlineAnnotate = nil
@@ -202,7 +194,7 @@ public final class CaptureCoordinator {
             }
             overlay.onSave = { [weak self] editedImage in
                 guard let self else { return }
-                let result = CaptureResult(image: editedImage, mode: .area, captureRect: sckRect)
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: macRect)
                 lastResult = result
                 onCaptureComplete?(result)
                 inlineAnnotate = nil
@@ -306,16 +298,8 @@ public final class CaptureCoordinator {
                 return
             }
 
-            // macOS → SCK 変換
-            let screenHeight = NSScreen.main?.frame.height ?? CGFloat(display.height)
-            let sckRect = CGRect(
-                x: macRect.origin.x,
-                y: screenHeight - macRect.origin.y - macRect.height,
-                width: macRect.width,
-                height: macRect.height
-            )
-
-            let image = try await captureService.captureArea(rect: sckRect, display: display)
+            // macOS 座標をそのまま渡す（座標変換は captureArea 内で行う）
+            let image = try await captureService.captureArea(macRect: macRect, display: display)
 
             // OCR 実行してクリップボードにコピー
             let ocrResult = try await OCRService.recognizeText(from: image)
@@ -337,7 +321,7 @@ public final class CaptureCoordinator {
             }
 
             let result = CaptureResult(
-                image: image, mode: .ocr, captureRect: sckRect,
+                image: image, mode: .ocr, captureRect: macRect,
                 ocrText: ocrResult.text.isEmpty ? nil : ocrResult.text
             )
             lastResult = result
