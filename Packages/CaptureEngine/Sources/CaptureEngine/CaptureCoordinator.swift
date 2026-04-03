@@ -179,6 +179,14 @@ public final class CaptureCoordinator {
 
             Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) display=\(display.width)x\(display.height)")
 
+            // キャプチャ前にすべての Clicher オーバーレイを非表示
+            // CGWindowListCreateImage は画面上の全ウィンドウをキャプチャするため
+            inlineAnnotate?.hideModeTab()
+            inlineAnnotate?.hideDim()
+
+            // ウィンドウサーバーに反映させるための短い待機
+            try await Task.sleep(for: .milliseconds(100))
+
             // macOS 座標をそのまま渡す（座標変換は captureArea 内で行う）
             let image = try await captureService.captureArea(macRect: macRect, display: display)
 
