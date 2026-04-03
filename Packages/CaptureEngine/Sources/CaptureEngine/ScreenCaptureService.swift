@@ -27,14 +27,11 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
 
-        // Retina 対応: バッキングスケールファクターを考慮
-        let scaleFactor = await MainActor.run {
-            NSScreen.main?.backingScaleFactor ?? 2.0
-        }
-
+        // sourceRect はポイント座標で指定
+        // width/height もポイント単位で指定し、captureResolution = .best で Retina 解像度を自動取得
         config.sourceRect = rect
-        config.width = Int(rect.width * scaleFactor)
-        config.height = Int(rect.height * scaleFactor)
+        config.width = Int(rect.width)
+        config.height = Int(rect.height)
         config.showsCursor = false
         config.captureResolution = .best
 
@@ -51,12 +48,9 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
 
-        let scaleFactor = await MainActor.run {
-            NSScreen.main?.backingScaleFactor ?? 2.0
-        }
-
-        config.width = Int(CGFloat(window.frame.width) * scaleFactor)
-        config.height = Int(CGFloat(window.frame.height) * scaleFactor)
+        // width/height はポイント単位で指定、captureResolution = .best が Retina を自動処理
+        config.width = Int(window.frame.width)
+        config.height = Int(window.frame.height)
         config.showsCursor = false
         config.captureResolution = .best
 
@@ -73,12 +67,9 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
 
-        let scaleFactor = await MainActor.run {
-            NSScreen.main?.backingScaleFactor ?? 2.0
-        }
-
-        config.width = display.width * Int(scaleFactor)
-        config.height = display.height * Int(scaleFactor)
+        // width/height はポイント単位で指定、captureResolution = .best が Retina を自動処理
+        config.width = display.width
+        config.height = display.height
         config.showsCursor = true
         config.captureResolution = .best
 
