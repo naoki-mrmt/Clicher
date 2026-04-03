@@ -70,7 +70,11 @@ public struct MenuBarView: View {
                 }
             }
 
-            SettingsLink {
+            Button {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                // SettingsLink は MenuBarExtra 内で動作しないため直接アクションを送る
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            } label: {
                 Label(L10n.settings, systemImage: "gear")
             }
             .keyboardShortcut(",")

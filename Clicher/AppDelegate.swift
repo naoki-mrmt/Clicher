@@ -51,10 +51,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             self.captureCoordinator?.startCaptureWithModeBar()
         }
+
+        // configure() 完了後にホットキーを登録
+        HotkeyManager.shared.register()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        HotkeyManager.shared.register()
+        // Note: register() は configure() の後に呼ぶ必要がある。
+        // configure() は configureIfNeeded() 経由で MenuBarContent.onAppear から呼ばれるため、
+        // ここでは権限チェックと権限ガイド表示のみ行う。
+        // register() は configure() の末尾で呼ばれる。
 
         // 権限不足なら権限ガイドウィンドウを表示
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
