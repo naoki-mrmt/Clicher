@@ -95,6 +95,13 @@ public final class HotkeyManager: @unchecked Sendable {
         Logger.hotkey.info("ホットキーを登録しました (keyCode=\(HotkeyManager.configuredKeyCode))")
     }
 
+    /// ホットキーを再登録（タップを破棄→再作成して最高優先度を確保）
+    /// 他アプリ（Lark等）より後にタップを作成することで headInsertEventTap の優先度を上げる
+    public func reregister() {
+        unregister()
+        register()
+    }
+
     /// ホットキーの解除
     public func unregister() {
         if let runLoopSource {

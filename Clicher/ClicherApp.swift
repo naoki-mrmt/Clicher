@@ -23,6 +23,9 @@ struct ClicherApp: App {
     @State private var isConfigured = false
 
     var body: some Scene {
+        // AppDelegate に configureIfNeeded トリガーを渡す（起動時に呼ばれる）
+        let _ = setupTriggerConfigure()
+
         // メニューバー（録画中はアイコン変更）
         MenuBarExtra(
             "Clicher",
@@ -146,6 +149,15 @@ struct ClicherApp: App {
         permissionManager.checkAll()
 
         Logger.app.info("Clicher 初期化完了")
+    }
+
+    /// AppDelegate.triggerConfigure を設定する（body 評価時に1度だけ実行）
+    private func setupTriggerConfigure() {
+        if appDelegate.triggerConfigure == nil {
+            appDelegate.triggerConfigure = { [self] in
+                configureIfNeeded()
+            }
+        }
     }
 
     private func handleCapture(_ mode: CaptureMode) {

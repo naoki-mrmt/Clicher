@@ -18,6 +18,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// SwiftUI Window を開くためのコールバック（ClicherApp から設定）
     var openPermissionGuide: (() -> Void)?
 
+    /// configureIfNeeded() を起動時に呼ぶためのコールバック（ClicherApp から設定）
+    var triggerConfigure: (() -> Void)?
+
     /// 外部からセット（ClicherApp から呼ばれる）
     func configure(
         appState: AppState,
@@ -52,15 +55,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.captureCoordinator?.startCaptureWithModeBar()
         }
 
-        // configure() 完了後にホットキーを登録
-        HotkeyManager.shared.register()
+        // configure() 完了後にタップを再登録して最高優先度を確保（Lark等より優先）
+        HotkeyManager.shared.reregister()
+
+        Logger.hotkey.info("ホットキー configure 完了、タップ再登録済み")
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Note: register() は configure() の後に呼ぶ必要がある。
-        // configure() は configureIfNeeded() 経由で MenuBarContent.onAppear から呼ばれるため、
-        // ここでは権限チェックと権限ガイド表示のみ行う。
-        // register() は configure() の末尾で呼ばれる。
+        // 起動直後にタップを登録（デフォルト ⌘⇧A でイベントを横取り → Lark をブロック）
+        // コールバックは configure() で後から設定されるが、タップ自体は先に存在させる
+        HotkeyManager.shared.register()
+
+        // configureIfNeeded() を起動時に呼ぶ
+        // MenuBarExtra の onAppear は遅延発火するため、ここから直接トリガー
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.triggerConfigure?()
+        }
 
         // 権限不足なら権限ガイドウィンドウを表示
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
