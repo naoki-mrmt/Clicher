@@ -24,24 +24,29 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public init() {}
 
     public func captureArea(rect: CGRect, display: SCDisplay) async throws -> CGImage {
-        let filter = SCContentFilter(display: display, excludingWindows: [])
-        let config = SCStreamConfiguration()
+        // フルスクリーンキャプチャ → CGImage クロップ方式
+        // sourceRect + width/height の組み合わせは SCStreamErrorDomain:-3 を引き起こすため回避
+        let fullImage = try await captureDisplay(display: display, showsCursor: false)
 
-        // sourceRect はポイント座標で指定
-        // width/height もポイント単位で指定し、captureResolution = .best で Retina 解像度を自動取得
-        config.sourceRect = rect
-        config.width = Int(rect.width)
-        config.height = Int(rect.height)
-        config.showsCursor = false
-        config.captureResolution = .best
-
-        let image = try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: config
+        // ポイント座標 → ピクセル座標に変換してクロップ
+        let scaleX = CGFloat(fullImage.width) / CGFloat(display.width)
+        let scaleY = CGFloat(fullImage.height) / CGFloat(display.height)
+        let pixelRect = CGRect(
+            x: rect.origin.x * scaleX,
+            y: rect.origin.y * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
         )
 
-        Logger.capture.info("エリアキャプチャ完了: \(Int(rect.width))x\(Int(rect.height))")
-        return image
+        guard let cropped = fullImage.cropping(to: pixelRect) else {
+            Logger.capture.error("エリアクロップ失敗: rect=\(rect.debugDescription) pixelRect=\(pixelRect.debugDescription)")
+            throw NSError(domain: "CaptureEngine", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "エリアのクロップに失敗しました"
+            ])
+        }
+
+        Logger.capture.info("エリアキャプチャ完了: \(cropped.width)x\(cropped.height)")
+        return cropped
     }
 
     public func captureWindow(_ window: SCWindow) async throws -> CGImage {
@@ -64,22 +69,25 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     }
 
     public func captureFullscreen(display: SCDisplay) async throws -> CGImage {
+        let image = try await captureDisplay(display: display, showsCursor: true)
+        Logger.capture.info("フルスクリーンキャプチャ完了: \(display.width)x\(display.height)")
+        return image
+    }
+
+    /// ディスプレイ全体をキャプチャする内部ヘルパー
+    private func captureDisplay(display: SCDisplay, showsCursor: Bool) async throws -> CGImage {
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
 
-        // width/height はポイント単位で指定、captureResolution = .best が Retina を自動処理
         config.width = display.width
         config.height = display.height
-        config.showsCursor = true
+        config.showsCursor = showsCursor
         config.captureResolution = .best
 
-        let image = try await SCScreenshotManager.captureImage(
+        return try await SCScreenshotManager.captureImage(
             contentFilter: filter,
             configuration: config
         )
-
-        Logger.capture.info("フルスクリーンキャプチャ完了: \(display.width)x\(display.height)")
-        return image
     }
 
     public func availableContent() async throws -> SCShareableContent {
