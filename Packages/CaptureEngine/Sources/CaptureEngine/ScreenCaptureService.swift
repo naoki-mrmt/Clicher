@@ -31,18 +31,26 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let imgW = CGFloat(fullImage.width)
         let imgH = CGFloat(fullImage.height)
 
-        // ポイント座標 → ピクセル座標に変換
-        let scaleX = imgW / CGFloat(display.width)
-        let scaleY = imgH / CGFloat(display.height)
+        // rect は NSScreen 座標空間（ディスプレイスケーリング適用済み）で渡される
+        // NSScreen.frame と display.width/height が異なる場合（「スペースを拡大」等）に対応するため
+        // NSScreen のサイズを基準にピクセル変換する
+        let displayW = CGFloat(display.width)
+        let displayH = CGFloat(display.height)
+        let screenSize = await MainActor.run {
+            NSScreen.main?.frame.size ?? CGSize(width: displayW, height: displayH)
+        }
 
-        Logger.capture.info("エリアクロップ: rect=\(rect.debugDescription) image=\(fullImage.width)x\(fullImage.height) display=\(display.width)x\(display.height) scale=\(scaleX)x\(scaleY)")
+        let toPixelX = imgW / screenSize.width
+        let toPixelY = imgH / screenSize.height
 
-        // ピクセル座標に変換し、整数に丸めて画像境界にクランプ
+        Logger.capture.info("エリアクロップ: rect=\(rect.debugDescription) image=\(fullImage.width)x\(fullImage.height) screen=\(screenSize.debugDescription) display=\(display.width)x\(display.height) toPixel=\(toPixelX)x\(toPixelY)")
+
+        // NSScreen 座標 → ピクセル座標に変換し、整数に丸めて画像境界にクランプ
         let rawRect = CGRect(
-            x: rect.origin.x * scaleX,
-            y: rect.origin.y * scaleY,
-            width: rect.width * scaleX,
-            height: rect.height * scaleY
+            x: rect.origin.x * toPixelX,
+            y: rect.origin.y * toPixelY,
+            width: rect.width * toPixelX,
+            height: rect.height * toPixelY
         )
         let imageBounds = CGRect(x: 0, y: 0, width: imgW, height: imgH)
         let pixelRect = rawRect.integral.intersection(imageBounds)
