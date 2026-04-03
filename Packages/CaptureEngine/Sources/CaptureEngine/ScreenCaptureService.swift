@@ -28,18 +28,28 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         // sourceRect + width/height の組み合わせは SCStreamErrorDomain:-3 を引き起こすため回避
         let fullImage = try await captureDisplay(display: display, showsCursor: false)
 
-        // ポイント座標 → ピクセル座標に変換してクロップ
-        let scaleX = CGFloat(fullImage.width) / CGFloat(display.width)
-        let scaleY = CGFloat(fullImage.height) / CGFloat(display.height)
-        let pixelRect = CGRect(
+        let imgW = CGFloat(fullImage.width)
+        let imgH = CGFloat(fullImage.height)
+
+        // ポイント座標 → ピクセル座標に変換
+        let scaleX = imgW / CGFloat(display.width)
+        let scaleY = imgH / CGFloat(display.height)
+
+        Logger.capture.info("エリアクロップ: rect=\(rect.debugDescription) image=\(fullImage.width)x\(fullImage.height) display=\(display.width)x\(display.height) scale=\(scaleX)x\(scaleY)")
+
+        // ピクセル座標に変換し、整数に丸めて画像境界にクランプ
+        let rawRect = CGRect(
             x: rect.origin.x * scaleX,
             y: rect.origin.y * scaleY,
             width: rect.width * scaleX,
             height: rect.height * scaleY
         )
+        let imageBounds = CGRect(x: 0, y: 0, width: imgW, height: imgH)
+        let pixelRect = rawRect.integral.intersection(imageBounds)
 
-        guard let cropped = fullImage.cropping(to: pixelRect) else {
-            Logger.capture.error("エリアクロップ失敗: rect=\(rect.debugDescription) pixelRect=\(pixelRect.debugDescription)")
+        guard !pixelRect.isNull, pixelRect.width > 0, pixelRect.height > 0,
+              let cropped = fullImage.cropping(to: pixelRect) else {
+            Logger.capture.error("エリアクロップ失敗: rawRect=\(rawRect.debugDescription) pixelRect=\(pixelRect.debugDescription) imageBounds=\(imageBounds.debugDescription)")
             throw NSError(domain: "CaptureEngine", code: -1, userInfo: [
                 NSLocalizedDescriptionKey: "エリアのクロップに失敗しました"
             ])
@@ -79,8 +89,12 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
 
-        config.width = display.width
-        config.height = display.height
+        // Retina 対応: ピクセル単位で出力サイズを指定
+        let scaleFactor = await MainActor.run {
+            NSScreen.main?.backingScaleFactor ?? 2.0
+        }
+        config.width = Int(CGFloat(display.width) * scaleFactor)
+        config.height = Int(CGFloat(display.height) * scaleFactor)
         config.showsCursor = showsCursor
         config.captureResolution = .best
 
