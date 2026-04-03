@@ -24,22 +24,19 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public init() {}
 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
-        // CGWindowListCreateImage で直接エリアキャプチャ
-        // SCScreenshotManager の sourceRect は SCStreamErrorDomain:-3 を起こし、
-        // フルスクリーン+クロップはディスプレイスケーリングで座標がズレるため、
-        // 最も確実な CGWindowListCreateImage を使用
-        let displayHeight = CGFloat(display.height)
-        let screenHeight = await MainActor.run {
-            NSScreen.main?.frame.height ?? displayHeight
-        }
+        // macOS スクリーン座標（左下原点）→ CG ディスプレイ座標（左上原点）
+        // CGDisplayBounds を使って正確な座標変換を行う
+        let mainDisplayID = CGMainDisplayID()
+        let displayBounds = CGDisplayBounds(mainDisplayID)
 
-        // macOS 座標（左下原点）→ CG 座標（左上原点）
         let cgRect = CGRect(
             x: macRect.origin.x,
-            y: screenHeight - macRect.origin.y - macRect.height,
+            y: displayBounds.height - macRect.origin.y - macRect.height,
             width: macRect.width,
             height: macRect.height
         )
+
+        Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) cgRect=\(cgRect.debugDescription) displayBounds=\(displayBounds.debugDescription)")
 
         guard let image = CGWindowListCreateImage(
             cgRect,
@@ -47,7 +44,7 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
             kCGNullWindowID,
             .bestResolution
         ) else {
-            Logger.capture.error("エリアキャプチャ失敗: macRect=\(macRect.debugDescription) cgRect=\(cgRect.debugDescription) screenH=\(screenHeight)")
+            Logger.capture.error("エリアキャプチャ失敗: cgRect=\(cgRect.debugDescription)")
             throw NSError(domain: "CaptureEngine", code: -1, userInfo: [
                 NSLocalizedDescriptionKey: "エリアキャプチャに失敗しました"
             ])

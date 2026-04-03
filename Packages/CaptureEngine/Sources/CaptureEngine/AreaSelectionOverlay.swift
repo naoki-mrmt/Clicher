@@ -260,16 +260,12 @@ private final class AreaSelectionView: NSView {
 
     /// 選択を確定して完了
     fileprivate func confirmSelection() {
-        guard let rect = selectionRect, let windowFrame = window?.frame else {
+        guard let rect = selectionRect, let win = window else {
             completionHandler?(nil)
             return
         }
-        let screenRect = CGRect(
-            x: windowFrame.origin.x + rect.origin.x,
-            y: windowFrame.origin.y + rect.origin.y,
-            width: rect.width,
-            height: rect.height
-        )
+        // NSView 座標 → NSScreen 座標に正確に変換
+        let screenRect = win.convertToScreen(rect)
         completionHandler?(screenRect)
     }
 
