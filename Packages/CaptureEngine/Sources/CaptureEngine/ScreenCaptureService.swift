@@ -24,47 +24,37 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public init() {}
 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
-        // フルスクリーンキャプチャ → CGImage クロップ方式
-        let fullImage = try await captureDisplay(display: display, showsCursor: false)
-
-        let imgW = CGFloat(fullImage.width)
-        let imgH = CGFloat(fullImage.height)
-
-        // macOS 座標（左下原点）→ CGImage ピクセル座標（左上原点）に直接変換
-        // NSScreen.frame.size を基準にすることで、ディスプレイスケーリングにも対応
-        let screenSize = await MainActor.run {
-            NSScreen.main?.frame.size ?? CGSize(width: imgW, height: imgH)
+        // CGWindowListCreateImage で直接エリアキャプチャ
+        // SCScreenshotManager の sourceRect は SCStreamErrorDomain:-3 を起こし、
+        // フルスクリーン+クロップはディスプレイスケーリングで座標がズレるため、
+        // 最も確実な CGWindowListCreateImage を使用
+        let displayHeight = CGFloat(display.height)
+        let screenHeight = await MainActor.run {
+            NSScreen.main?.frame.height ?? displayHeight
         }
 
-        let toPixelX = imgW / screenSize.width
-        let toPixelY = imgH / screenSize.height
-
-        // macOS 左下原点 → CGImage 左上原点: y を反転
-        let flippedY = screenSize.height - macRect.origin.y - macRect.height
-
-        let rawRect = CGRect(
-            x: macRect.origin.x * toPixelX,
-            y: flippedY * toPixelY,
-            width: macRect.width * toPixelX,
-            height: macRect.height * toPixelY
+        // macOS 座標（左下原点）→ CG 座標（左上原点）
+        let cgRect = CGRect(
+            x: macRect.origin.x,
+            y: screenHeight - macRect.origin.y - macRect.height,
+            width: macRect.width,
+            height: macRect.height
         )
 
-        Logger.capture.info("エリアクロップ: macRect=\(macRect.debugDescription) flippedY=\(flippedY) image=\(fullImage.width)x\(fullImage.height) screen=\(screenSize.debugDescription) rawRect=\(rawRect.debugDescription)")
-
-        // 整数に丸めて画像境界にクランプ
-        let imageBounds = CGRect(x: 0, y: 0, width: imgW, height: imgH)
-        let pixelRect = rawRect.integral.intersection(imageBounds)
-
-        guard !pixelRect.isNull, pixelRect.width > 0, pixelRect.height > 0,
-              let cropped = fullImage.cropping(to: pixelRect) else {
-            Logger.capture.error("エリアクロップ失敗: rawRect=\(rawRect.debugDescription) pixelRect=\(pixelRect.debugDescription) imageBounds=\(imageBounds.debugDescription)")
+        guard let image = CGWindowListCreateImage(
+            cgRect,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            .bestResolution
+        ) else {
+            Logger.capture.error("エリアキャプチャ失敗: macRect=\(macRect.debugDescription) cgRect=\(cgRect.debugDescription) screenH=\(screenHeight)")
             throw NSError(domain: "CaptureEngine", code: -1, userInfo: [
-                NSLocalizedDescriptionKey: "エリアのクロップに失敗しました"
+                NSLocalizedDescriptionKey: "エリアキャプチャに失敗しました"
             ])
         }
 
-        Logger.capture.info("エリアキャプチャ完了: \(cropped.width)x\(cropped.height)")
-        return cropped
+        Logger.capture.info("エリアキャプチャ完了: \(image.width)x\(image.height)")
+        return image
     }
 
     public func captureWindow(_ window: SCWindow) async throws -> CGImage {
