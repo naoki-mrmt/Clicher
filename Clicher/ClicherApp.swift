@@ -91,6 +91,11 @@ struct ClicherApp: App {
             toastOverlay.show(message, style: .error)
         }
 
+        // ホットキー登録失敗時のトースト通知
+        HotkeyManager.shared.onRegistrationFailed = {
+            toastOverlay.show(L10n.hotkeyRegistrationFailed, style: .error, duration: 5)
+        }
+
         // キャプチャ完了 → Quick Access Overlay を表示 + 履歴に追加
         captureCoordinator.onCaptureComplete = { result in
             quickAccessOverlay.show(result: result)

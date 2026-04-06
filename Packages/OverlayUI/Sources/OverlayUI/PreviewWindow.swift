@@ -7,8 +7,9 @@ import Utilities
 /// キャプチャ画像のプレビューウィンドウ
 /// サムネイルクリックで拡大表示、ドラッグ&ドロップで外部アプリに共有
 @MainActor
-public final class PreviewWindow {
+public final class PreviewWindow: NSObject, NSWindowDelegate {
     private static var activeWindow: NSWindow?
+    private static let delegate = PreviewWindow()
 
     /// プレビューウィンドウを表示
     public static func show(image: NSImage) {
@@ -36,10 +37,17 @@ public final class PreviewWindow {
         window.title = L10n.preview
         window.contentView = hostingView
         window.center()
+        window.delegate = delegate
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         activeWindow = window
+    }
+
+    // MARK: - NSWindowDelegate
+
+    public func windowWillClose(_ notification: Notification) {
+        PreviewWindow.activeWindow = nil
     }
 }
 

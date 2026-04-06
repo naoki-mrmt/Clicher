@@ -90,14 +90,14 @@ public final class ToastOverlay {
         dismissTask = nil
 
         guard let panel else { return }
+        self.panel = nil
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             panel.animator().alphaValue = 0
         } completionHandler: {
-            Task { @MainActor [weak self] in
+            Task { @MainActor in
                 panel.orderOut(nil)
-                self?.panel = nil
             }
         }
     }

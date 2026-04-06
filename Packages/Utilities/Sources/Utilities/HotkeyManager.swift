@@ -11,6 +11,9 @@ public final class HotkeyManager: @unchecked Sendable {
     /// ホットキーが押された時のコールバック
     public var onHotkeyPressed: (@Sendable @MainActor () -> Void)?
 
+    /// ホットキー登録失敗時のコールバック
+    public var onRegistrationFailed: (@MainActor () -> Void)?
+
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
@@ -84,6 +87,7 @@ public final class HotkeyManager: @unchecked Sendable {
 
         guard let eventTap else {
             Logger.hotkey.error("CGEvent.tapCreate failed — Accessibility 権限が必要です")
+            onRegistrationFailed?()
             return
         }
 

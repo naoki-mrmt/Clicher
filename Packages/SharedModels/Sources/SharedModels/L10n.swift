@@ -240,4 +240,10 @@ public enum L10n {
 
     public static var processingOCR: String { localized(ja: "テキストを認識中...", en: "Recognizing text...") }
     public static var processingStitch: String { localized(ja: "画像を結合中...", en: "Stitching images...") }
+    public static var hotkeyRegistrationFailed: String {
+        localized(
+            ja: "ホットキーの登録に失敗しました。システム設定 → プライバシーとセキュリティ → アクセシビリティ を確認してください。",
+            en: "Hotkey registration failed. Please check System Settings → Privacy & Security → Accessibility."
+        )
+    }
 }
