@@ -183,21 +183,31 @@ public final class CaptureCoordinator {
 
         switch mode {
         case .area:
-            // スクリーンショット: キャプチャ → インライン編集
             await captureAreaAfterSelection(macRect: macRect, overlay: overlay)
         case .recording:
-            // 画面録画: 録画待機画面 → 開始ボタン → 録画
             await startRecordingAfterSelection(macRect: macRect, overlay: overlay)
         case .ocr:
-            // OCR: キャプチャ → テキスト認識
             overlay.dismiss()
             inlineAnnotate = nil
             await startOCRAfterSelection(macRect: macRect)
-        default:
-            // その他: 既存フローにフォールバック
+        case .window:
+            // ウィンドウキャプチャ: エリア選択結果は使わず、ウィンドウ選択 UI を表示
             overlay.dismiss()
             inlineAnnotate = nil
-            executeCapture(mode: mode)
+            isCapturing = false
+            await startWindowCapture()
+        case .fullscreen:
+            // フルスクリーン: エリア選択結果は使わず、即キャプチャ
+            overlay.dismiss()
+            inlineAnnotate = nil
+            isCapturing = false
+            await startFullscreenCapture()
+        case .scroll:
+            // スクロール: エリア選択結果は使わず、独自フローへ
+            overlay.dismiss()
+            inlineAnnotate = nil
+            isCapturing = false
+            await startScrollCapture()
         }
     }
 
