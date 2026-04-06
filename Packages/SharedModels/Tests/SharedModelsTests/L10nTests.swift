@@ -28,9 +28,6 @@ struct L10nTests {
         let saved = L10n.saved("test.png")
         #expect(saved.contains("test.png"))
 
-        let items = L10n.itemCount(42)
-        #expect(items.contains("42"))
-
         let autoClose = L10n.autoCloseSeconds(5)
         #expect(autoClose.contains("5"))
 

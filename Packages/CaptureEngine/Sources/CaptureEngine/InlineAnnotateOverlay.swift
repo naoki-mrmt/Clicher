@@ -65,7 +65,8 @@ public final class InlineAnnotateOverlay {
         self.document = doc
 
         // 画面更新を一括で行い、段階的な表示を防ぐ
-        NSDisableScreenUpdates()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
 
         // 1. 背景暗転（まだなければ作成、隠れていれば再表示）
         if dimWindow == nil {
@@ -106,7 +107,7 @@ public final class InlineAnnotateOverlay {
         // 4. ツールバー（キャンバスの下 or 上に配置）
         showToolbar(canvasRect: screenRect, document: doc, canvasView: canvas)
 
-        NSEnableScreenUpdates()
+        CATransaction.commit()
 
         // 5. キーボードモニター
         setupKeyMonitor()
@@ -286,11 +287,12 @@ public final class InlineAnnotateOverlay {
             }
             return event
         }
-        // グローバルモニター（アプリが非アクティブ時にも Esc を捕捉）
+        // グローバルモニター（アプリが非アクティブ時のみ Esc を捕捉）
+        // ローカルモニターと二重発火しないよう、アプリが非アクティブ時のみ処理
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 {
-                self?.handleCancel()
-            }
+            guard event.keyCode == 53 else { return }
+            guard !NSApp.isActive else { return }
+            self?.handleCancel()
         }
     }
 

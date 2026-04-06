@@ -18,7 +18,6 @@ struct ClicherApp: App {
     @State private var annotateWindow = AnnotateWindow()
     @State private var floatingManager = FloatingScreenshotManager()
     @State private var toastOverlay = ToastOverlay()
-    @State private var historyStore = CaptureHistoryStore()
     @State private var presetStore: BrandPresetStore?
     @State private var isConfigured = false
 
@@ -36,7 +35,6 @@ struct ClicherApp: App {
                 permissionManager: permissionManager,
                 loginItemManager: loginItemManager,
                 onCapture: handleCapture,
-                historyStore: historyStore,
                 configureIfNeeded: configureIfNeeded,
                 isPermissionGuideVisible: $appState.isPermissionGuideVisible
             )
@@ -51,12 +49,6 @@ struct ClicherApp: App {
                 presetStore: presetStore
             )
         }
-
-        // キャプチャ履歴ウィンドウ
-        Window(L10n.captureHistory, id: "capture-history") {
-            CaptureHistoryView(store: historyStore)
-        }
-        .windowResizability(.contentSize)
 
         // 権限ガイドウィンドウ
         Window(L10n.permissionSettings, id: "permission-guide") {
@@ -86,20 +78,14 @@ struct ClicherApp: App {
         // Quick Access Overlay に設定を渡す
         quickAccessOverlay.settings = appSettings
 
-        // 履歴ストアのエラーをトースト表示
-        historyStore.onError = { message in
-            toastOverlay.show(message, style: .error)
-        }
-
         // ホットキー登録失敗時のトースト通知
         HotkeyManager.shared.onRegistrationFailed = {
             toastOverlay.show(L10n.hotkeyRegistrationFailed, style: .error, duration: 5)
         }
 
-        // キャプチャ完了 → Quick Access Overlay を表示 + 履歴に追加
+        // キャプチャ完了 → Quick Access Overlay を表示
         captureCoordinator.onCaptureComplete = { result in
             quickAccessOverlay.show(result: result)
-            historyStore.add(image: result.image, mode: result.mode)
         }
 
         // Quick Access Overlay のアクション
@@ -197,7 +183,6 @@ private struct MenuBarContent: View {
     let permissionManager: PermissionManager
     let loginItemManager: LoginItemManager
     let onCapture: (CaptureMode) -> Void
-    let historyStore: CaptureHistoryStore
     let configureIfNeeded: () -> Void
     @Binding var isPermissionGuideVisible: Bool
 
@@ -208,11 +193,7 @@ private struct MenuBarContent: View {
             appState: appState,
             permissionManager: permissionManager,
             loginItemManager: loginItemManager,
-            onCapture: onCapture,
-            onShowHistory: {
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "capture-history")
-            }
+            onCapture: onCapture
         )
         .onAppear {
             configureIfNeeded()

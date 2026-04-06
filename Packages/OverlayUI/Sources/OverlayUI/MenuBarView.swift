@@ -8,20 +8,17 @@ public struct MenuBarView: View {
     public let permissionManager: PermissionManager
     public let loginItemManager: LoginItemManager
     public let onCapture: (CaptureMode) -> Void
-    public var onShowHistory: (() -> Void)?
 
     public init(
         appState: AppState,
         permissionManager: PermissionManager,
         loginItemManager: LoginItemManager,
-        onCapture: @escaping (CaptureMode) -> Void,
-        onShowHistory: (() -> Void)? = nil
+        onCapture: @escaping (CaptureMode) -> Void
     ) {
         self.appState = appState
         self.permissionManager = permissionManager
         self.loginItemManager = loginItemManager
         self.onCapture = onCapture
-        self.onShowHistory = onShowHistory
     }
 
     @Environment(\.openSettings) private var openSettings
@@ -64,14 +61,6 @@ public struct MenuBarView: View {
             Divider()
 
             // 設定セクション
-            if let onShowHistory {
-                Button {
-                    onShowHistory()
-                } label: {
-                    Label(L10n.captureHistory, systemImage: "clock.arrow.circlepath")
-                }
-            }
-
             Button {
                 openSettings()
             } label: {

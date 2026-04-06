@@ -165,24 +165,6 @@ struct E2EIntegrationTests {
 
     // MARK: - History Pipeline
 
-    @Test("Capture → History → Retrieve")
-    @MainActor func captureToHistory() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-
-        let store = CaptureHistoryStore(directory: dir, maxEntries: 50)
-        let image = try makeDummyImage()
-
-        store.add(image: image, mode: .area)
-        store.add(image: image, mode: .fullscreen)
-        store.add(image: image, mode: .ocr)
-
-        let entries = store.allEntries()
-        #expect(entries.count == 3)
-        #expect(entries.first?.mode == "OCR") // newest first
-    }
-
     // MARK: - Image Utilities Pipeline
 
     @Test("Combine + Rotate pipeline")

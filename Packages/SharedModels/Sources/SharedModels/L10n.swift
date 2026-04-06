@@ -103,19 +103,8 @@ public enum L10n {
         localized(ja: "自動クローズは無効です", en: "Auto-close is disabled")
     }
 
-    // MARK: - History
+    // MARK: - Preview
 
-    public static var captureHistory: String { localized(ja: "キャプチャ履歴", en: "Capture History") }
-    public static var selectHistory: String { localized(ja: "履歴を選択", en: "Select a capture") }
-    public static func itemCount(_ n: Int) -> String {
-        localized(ja: "\(n) 件", en: "\(n) items")
-    }
-    public static var clearAll: String { localized(ja: "全削除", en: "Clear All") }
-    public static var showInFinder: String { localized(ja: "Finder で表示", en: "Show in Finder") }
-    public static var mode: String { localized(ja: "モード", en: "Mode") }
-    public static var size: String { localized(ja: "サイズ", en: "Size") }
-    public static var dateTime: String { localized(ja: "日時", en: "Date") }
-    public static var file: String { localized(ja: "ファイル", en: "File") }
     public static var preview: String { localized(ja: "プレビュー", en: "Preview") }
 
     // MARK: - About
