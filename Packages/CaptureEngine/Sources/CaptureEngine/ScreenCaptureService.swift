@@ -24,31 +24,30 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public init() {}
 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
-        // macOS スクリーン座標（左下原点）→ CG ディスプレイ座標（左上原点）
-        // CGDisplayBounds を使って正確な座標変換を行う
-        let mainDisplayID = CGMainDisplayID()
-        let displayBounds = CGDisplayBounds(mainDisplayID)
-
-        let cgRect = CGRect(
+        // macOS スクリーン座標（左下原点）→ SCK 座標（左上原点）
+        let displayBounds = CGDisplayBounds(CGMainDisplayID())
+        let sckRect = CGRect(
             x: macRect.origin.x,
             y: displayBounds.height - macRect.origin.y - macRect.height,
             width: macRect.width,
             height: macRect.height
         )
 
-        Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) cgRect=\(cgRect.debugDescription) displayBounds=\(displayBounds.debugDescription)")
+        Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) sckRect=\(sckRect.debugDescription)")
 
-        guard let image = CGWindowListCreateImage(
-            cgRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            .bestResolution
-        ) else {
-            Logger.capture.error("エリアキャプチャ失敗: cgRect=\(cgRect.debugDescription)")
-            throw NSError(domain: "CaptureEngine", code: -1, userInfo: [
-                NSLocalizedDescriptionKey: "エリアキャプチャに失敗しました"
-            ])
-        }
+        // SCScreenshotManager + sourceRect でエリアキャプチャ
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let config = SCStreamConfiguration()
+        config.sourceRect = sckRect
+        config.width = Int(sckRect.width * ScreenUtilities.activeScaleFactor)
+        config.height = Int(sckRect.height * ScreenUtilities.activeScaleFactor)
+        config.showsCursor = false
+        config.captureResolution = .best
+
+        let image = try await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: config
+        )
 
         Logger.capture.info("エリアキャプチャ完了: \(image.width)x\(image.height)")
         return image
