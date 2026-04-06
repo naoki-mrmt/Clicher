@@ -8,7 +8,7 @@ public enum ImageExporter {
     /// 画像をクリップボードにコピー
     @MainActor
     public static func copyToClipboard(_ image: CGImage) {
-        let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+        let nsImage = NSImage(cgImage: image, size: .zero)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.writeObjects([nsImage])

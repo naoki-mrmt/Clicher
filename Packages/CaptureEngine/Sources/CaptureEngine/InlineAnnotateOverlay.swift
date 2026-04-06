@@ -64,6 +64,9 @@ public final class InlineAnnotateOverlay {
         let doc = AnnotateDocument(image: image)
         self.document = doc
 
+        // 画面更新を一括で行い、段階的な表示を防ぐ
+        NSDisableScreenUpdates()
+
         // 1. 背景暗転（まだなければ作成、隠れていれば再表示）
         if dimWindow == nil {
             showDimWindow()
@@ -87,7 +90,7 @@ public final class InlineAnnotateOverlay {
         cw.level = .screenSaver
         cw.isOpaque = false
         cw.backgroundColor = .clear
-        cw.hasShadow = true
+        cw.hasShadow = false
         cw.acceptsMouseMovedEvents = true
         cw.contentView = canvas
         NSApp.activate(ignoringOtherApps: true)
@@ -102,6 +105,8 @@ public final class InlineAnnotateOverlay {
 
         // 4. ツールバー（キャンバスの下 or 上に配置）
         showToolbar(canvasRect: screenRect, document: doc, canvasView: canvas)
+
+        NSEnableScreenUpdates()
 
         // 5. キーボードモニター
         setupKeyMonitor()
