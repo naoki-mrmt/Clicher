@@ -71,9 +71,15 @@ public struct MenuBarView: View {
             }
 
             Button {
+                // MenuBarExtra からは activate → 少し待ってから Settings を開く
                 NSApplication.shared.activate(ignoringOtherApps: true)
-                // SettingsLink は MenuBarExtra 内で動作しないため直接アクションを送る
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                DispatchQueue.main.async {
+                    if #available(macOS 14, *) {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    } else {
+                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
+                }
             } label: {
                 Label(L10n.settings, systemImage: "gear")
             }
