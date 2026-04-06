@@ -83,12 +83,12 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
 
-        // Retina 対応: ピクセル単位で出力サイズを指定
-        let scaleFactor = await MainActor.run {
-            NSScreen.main?.backingScaleFactor ?? 2.0
-        }
-        config.width = Int(CGFloat(display.width) * scaleFactor)
-        config.height = Int(CGFloat(display.height) * scaleFactor)
+        // Retina: CGMainDisplayID のネイティブピクセルモードで取得（MainActor 不要）
+        let displayID = CGMainDisplayID()
+        let pixelWidth = CGDisplayPixelsWide(displayID)
+        let pixelHeight = CGDisplayPixelsHigh(displayID)
+        config.width = pixelWidth
+        config.height = pixelHeight
         config.showsCursor = showsCursor
         config.captureResolution = .best
 

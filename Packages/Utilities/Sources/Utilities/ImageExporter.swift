@@ -21,6 +21,10 @@ public enum ImageExporter {
         format: ImageFormat = .png,
         directory: URL? = nil
     ) -> URL? {
+        guard image.width > 0, image.height > 0 else {
+            Logger.capture.error("画像サイズが不正: \(image.width)x\(image.height)")
+            return nil
+        }
         let saveDir = directory ?? defaultSaveDirectory()
         let fileName = generateFileName(format: format)
         let fileURL = saveDir.appendingPathComponent(fileName)
@@ -100,10 +104,14 @@ public enum ImageExporter {
         return desktop ?? FileManager.default.temporaryDirectory
     }
 
+    private static let fileNameFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        return f
+    }()
+
     public static func generateFileName(format: ImageFormat) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timestamp = formatter.string(from: Date())
+        let timestamp = fileNameFormatter.string(from: Date())
         return "Clicher_\(timestamp).\(format.fileExtension)"
     }
 }

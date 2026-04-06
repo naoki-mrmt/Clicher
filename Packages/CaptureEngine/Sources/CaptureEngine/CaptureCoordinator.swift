@@ -100,6 +100,7 @@ public final class CaptureCoordinator {
     }
 
     private func executeCapture(mode: CaptureMode) {
+        isCapturing = true
         Task {
             switch mode {
             case .area:
@@ -151,8 +152,6 @@ public final class CaptureCoordinator {
     // MARK: - Area Capture
 
     private func startAreaCapture() async {
-        isCapturing = true
-
         // エリア選択中は dim を隠す（AreaSelectionOverlay が独自に暗転するため二重を防ぐ）
         inlineAnnotate?.hideDim()
 

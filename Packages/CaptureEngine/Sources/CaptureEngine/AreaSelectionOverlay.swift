@@ -85,26 +85,32 @@ private final class AreaSelectionWindow: NSWindow {
 
     override var canBecomeKey: Bool { true }
 
+    // MARK: - Key Codes
+    private static let kEscape: UInt16 = 53
+    private static let kReturn: UInt16 = 36
+    private static let kNumpadEnter: UInt16 = 76
+    private static let kLeftArrow: UInt16 = 123
+    private static let kRightArrow: UInt16 = 124
+    private static let kDownArrow: UInt16 = 125
+    private static let kUpArrow: UInt16 = 126
+
     override func keyDown(with event: NSEvent) {
-        // Escape でキャンセル
-        if event.keyCode == 53 {
+        if event.keyCode == Self.kEscape {
             finishSelection(rect: nil)
             return
         }
-        // Enter / Return で選択確定
-        if event.keyCode == 36 || event.keyCode == 76 {
+        if event.keyCode == Self.kReturn || event.keyCode == Self.kNumpadEnter {
             if let view = selectionView {
                 view.confirmSelection()
             }
             return
         }
-        // 矢印キーで選択範囲を微調整（Shift で 10px）
         let step: CGFloat = event.modifierFlags.contains(.shift) ? 10 : 1
         switch event.keyCode {
-        case 123: selectionView?.nudgeSelection(dx: -step, dy: 0) // ←
-        case 124: selectionView?.nudgeSelection(dx: step, dy: 0)  // →
-        case 125: selectionView?.nudgeSelection(dx: 0, dy: step)  // ↓ (flipped)
-        case 126: selectionView?.nudgeSelection(dx: 0, dy: -step) // ↑ (flipped)
+        case Self.kLeftArrow:  selectionView?.nudgeSelection(dx: -step, dy: 0)
+        case Self.kRightArrow: selectionView?.nudgeSelection(dx: step, dy: 0)
+        case Self.kDownArrow:  selectionView?.nudgeSelection(dx: 0, dy: step)
+        case Self.kUpArrow:    selectionView?.nudgeSelection(dx: 0, dy: -step)
         default: break
         }
     }

@@ -33,11 +33,15 @@ public struct CaptureHistoryEntry: Codable, Identifiable, Sendable {
     }
 
     /// 日付のフォーマット済み文字列
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .medium
+        return f
+    }()
+
     public var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .medium
-        return formatter.string(from: timestamp)
+        Self.dateFormatter.string(from: timestamp)
     }
 
     /// サイズの表示文字列
@@ -93,19 +97,22 @@ public final class CaptureHistoryStore {
 
     /// キャプチャ結果を履歴に追加
     public func add(image: CGImage, mode: CaptureMode, filePath: String? = nil) {
-        // サムネイル生成（最大200px幅）
-        let thumbnailImage = createThumbnail(from: image, maxWidth: 200)
+        let imageWidth = image.width
+        let imageHeight = image.height
         let thumbnailName = "\(UUID().uuidString).png"
         let thumbnailURL = thumbnailDirectory.appendingPathComponent(thumbnailName)
 
-        if let thumbnailImage {
-            savePNG(thumbnailImage, to: thumbnailURL)
+        // autoreleasepool でサムネイル生成後に中間オブジェクトを即時解放
+        autoreleasepool {
+            if let thumbnailImage = createThumbnail(from: image, maxWidth: 200) {
+                savePNG(thumbnailImage, to: thumbnailURL)
+            }
         }
 
         let entry = CaptureHistoryEntry(
             mode: mode,
-            width: image.width,
-            height: image.height,
+            width: imageWidth,
+            height: imageHeight,
             filePath: filePath,
             thumbnailPath: thumbnailURL.path
         )

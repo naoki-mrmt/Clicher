@@ -75,7 +75,11 @@ public enum OCRService {
     }
 
     /// OCR + バーコード検出を実行し、結果をクリップボードにコピー
-    public static func performOCRAndCopy(from image: CGImage) async {
+    /// - Parameter onError: エラー時のコールバック（UI通知用）
+    public static func performOCRAndCopy(
+        from image: CGImage,
+        onError: (@Sendable (String) -> Void)? = nil
+    ) async {
         do {
             let result = try await recognizeText(from: image)
             if !result.isEmpty {
@@ -96,9 +100,11 @@ public enum OCRService {
                 Logger.capture.info("OCR 結果をクリップボードにコピーしました")
             } else {
                 Logger.capture.info("OCR 結果が空です")
+                onError?("テキストが検出されませんでした")
             }
         } catch {
             Logger.capture.error("OCR 失敗: \(error)")
+            onError?("OCR 失敗: \(error.localizedDescription)")
         }
     }
 }
