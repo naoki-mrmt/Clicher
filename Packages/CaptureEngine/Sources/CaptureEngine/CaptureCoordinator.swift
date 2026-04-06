@@ -40,6 +40,9 @@ public final class CaptureCoordinator {
     public var onRecordingStarted: (() -> Void)?
     public var onRecordingStopped: (() -> Void)?
 
+    /// 録画完了コールバック（動画ファイル URL）
+    public var onRecordingComplete: ((URL) -> Void)?
+
     /// 録画中かどうか
     public private(set) var isRecording = false
 
@@ -144,8 +147,18 @@ public final class CaptureCoordinator {
 
         let overlay = InlineAnnotateOverlay()
         overlay.onModeChanged = { [weak self] mode in
-            // モード切替は状態更新のみ（エリア選択は継続）
-            self?.modeBarSelectedMode = mode
+            guard let self else { return }
+            switch mode {
+            case .area, .recording, .ocr:
+                // エリア選択が必要なモード → 状態更新のみ（エリア選択は継続）
+                modeBarSelectedMode = mode
+            case .window, .fullscreen, .scroll:
+                // エリア選択不要なモード → overlay を閉じて即実行
+                inlineAnnotate = nil
+                overlay.dismiss()
+                isCapturing = false
+                startCapture(mode: mode)
+            }
         }
         overlay.onCancel = { [weak self] in
             self?.inlineAnnotate = nil
@@ -190,24 +203,11 @@ public final class CaptureCoordinator {
             overlay.dismiss()
             inlineAnnotate = nil
             await startOCRAfterSelection(macRect: macRect)
-        case .window:
-            // ウィンドウキャプチャ: エリア選択結果は使わず、ウィンドウ選択 UI を表示
+        default:
+            // window/fullscreen/scroll はモードタブ選択時に直接実行されるためここには来ない
             overlay.dismiss()
             inlineAnnotate = nil
             isCapturing = false
-            await startWindowCapture()
-        case .fullscreen:
-            // フルスクリーン: エリア選択結果は使わず、即キャプチャ
-            overlay.dismiss()
-            inlineAnnotate = nil
-            isCapturing = false
-            await startFullscreenCapture()
-        case .scroll:
-            // スクロール: エリア選択結果は使わず、独自フローへ
-            overlay.dismiss()
-            inlineAnnotate = nil
-            isCapturing = false
-            await startScrollCapture()
         }
     }
 
@@ -344,6 +344,7 @@ public final class CaptureCoordinator {
             isRecording = false
             isCapturing = false
             onRecordingStopped?()
+            onRecordingComplete?(url)
         }
         session.onError = { [weak self] message in
             self?.onError?(message)

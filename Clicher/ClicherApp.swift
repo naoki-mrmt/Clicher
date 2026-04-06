@@ -154,9 +154,27 @@ struct ClicherApp: App {
             recordingIndicator = nil
         }
 
-        // Annotate 完了 → クリップボードにコピー
+        // 録画完了 → 保存先に移動して Finder で表示
+        captureCoordinator.onRecordingComplete = { [appSettings] url in
+            let saveDir = appSettings.saveDirectory
+            let fileName = "Clicher_Recording_\(Int(Date().timeIntervalSince1970)).mp4"
+            let destination = saveDir.appendingPathComponent(fileName)
+            do {
+                try FileManager.default.moveItem(at: url, to: destination)
+                toastOverlay.show(L10n.saved(fileName), style: .success, duration: 3)
+                NSWorkspace.shared.activateFileViewerSelecting([destination])
+            } catch {
+                // 移動失敗 → 元の場所を通知
+                Logger.app.error("録画ファイルの移動に失敗: \(error)")
+                toastOverlay.show(L10n.saved(url.lastPathComponent), style: .success, duration: 3)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        }
+
+        // Annotate 完了 → クリップボードにコピー + トースト通知
         annotateWindow.onComplete = { image in
             ImageExporter.copyToClipboard(image)
+            toastOverlay.show(L10n.copied, style: .success, duration: 2)
         }
         annotateWindow.onError = { message in
             toastOverlay.show(message, style: .error)
