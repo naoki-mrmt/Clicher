@@ -53,13 +53,13 @@ struct ClicherApp: App {
         }
 
         // キャプチャ履歴ウィンドウ
-        Window("キャプチャ履歴", id: "capture-history") {
+        Window(L10n.captureHistory, id: "capture-history") {
             CaptureHistoryView(store: historyStore)
         }
         .windowResizability(.contentSize)
 
         // 権限ガイドウィンドウ
-        Window("権限設定", id: "permission-guide") {
+        Window(L10n.permissionSettings, id: "permission-guide") {
             PermissionGuideView(
                 permissionManager: permissionManager,
                 onDismiss: {

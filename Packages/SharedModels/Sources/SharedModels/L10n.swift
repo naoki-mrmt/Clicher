@@ -3,8 +3,12 @@ import Foundation
 /// 多言語対応の文字列カタログ
 /// 日本語 (デフォルト) + 英語
 public enum L10n {
+    /// アプリの表示言語（日本語がデフォルト）
+    /// ユーザーの優先言語に日本語が含まれない場合のみ英語にフォールバック
     private static var isEnglish: Bool {
-        Locale.current.language.languageCode?.identifier == "en"
+        let preferred = Locale.preferredLanguages
+        let hasJapanese = preferred.contains { $0.hasPrefix("ja") }
+        return !hasJapanese
     }
 
     private static func localized(ja: String, en: String) -> String {
@@ -30,6 +34,15 @@ public enum L10n {
     public static var screenshot: String { localized(ja: "スクリーンショット", en: "Screenshot") }
     public static var scrollCapture: String { localized(ja: "スクロールキャプチャ", en: "Scroll Capture") }
     public static var screenRecording: String { localized(ja: "画面収録", en: "Screen Recording") }
+
+    // MARK: - Capture Mode Labels
+
+    public static var modeArea: String { localized(ja: "エリア", en: "Area") }
+    public static var modeWindow: String { localized(ja: "ウィンドウ", en: "Window") }
+    public static var modeFullscreen: String { localized(ja: "フルスクリーン", en: "Fullscreen") }
+    public static var modeScroll: String { localized(ja: "スクロール", en: "Scroll") }
+    public static var modeOCR: String { "OCR" }
+    public static var modeRecording: String { localized(ja: "録画", en: "Recording") }
     public static var recognizeText: String { localized(ja: "テキストを認識", en: "Recognize Text") }
 
     // MARK: - Quick Access
@@ -48,6 +61,7 @@ public enum L10n {
 
     // MARK: - Permissions
 
+    public static var permissionSettings: String { localized(ja: "権限設定", en: "Permission Settings") }
     public static var permissionsRequired: String {
         localized(ja: "Clicher を使うには権限が必要です", en: "Clicher requires permissions")
     }

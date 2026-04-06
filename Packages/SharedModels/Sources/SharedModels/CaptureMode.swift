@@ -11,12 +11,12 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
 
     public var label: String {
         switch self {
-        case .area: "エリア"
-        case .window: "ウィンドウ"
-        case .fullscreen: "フルスクリーン"
-        case .scroll: "スクロール"
-        case .ocr: "OCR"
-        case .recording: "録画"
+        case .area: L10n.modeArea
+        case .window: L10n.modeWindow
+        case .fullscreen: L10n.modeFullscreen
+        case .scroll: L10n.modeScroll
+        case .ocr: L10n.modeOCR
+        case .recording: L10n.modeRecording
         }
     }
 
