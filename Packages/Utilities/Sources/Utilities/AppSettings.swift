@@ -68,14 +68,17 @@ public final class AppSettings {
     public init() {
         let defaults = UserDefaults.standard
 
-        // 保存先
+        // 保存先（存在しなければデスクトップにフォールバック）
+        let desktop = FileManager.default.urls(
+            for: .desktopDirectory, in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory
+
         if let path = defaults.string(forKey: "saveDirectory"),
-           let url = URL(string: path) {
+           let url = URL(string: path),
+           FileManager.default.fileExists(atPath: url.path) {
             self.saveDirectory = url
         } else {
-            self.saveDirectory = FileManager.default.urls(
-                for: .desktopDirectory, in: .userDomainMask
-            ).first ?? FileManager.default.temporaryDirectory
+            self.saveDirectory = desktop
         }
 
         // ファイル名パターン

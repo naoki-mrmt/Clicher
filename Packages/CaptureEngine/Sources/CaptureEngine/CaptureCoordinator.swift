@@ -601,17 +601,6 @@ public final class CaptureCoordinator {
     }
 
     /// プレースホルダー画像（録画完了時の通知用）
-    private func createPlaceholderImage() -> CGImage {
-        let ctx = CGContext(data: nil, width: 1, height: 1,
-                           bitsPerComponent: 8, bytesPerRow: 0,
-                           space: CGColorSpaceCreateDeviceRGB(),
-                           bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)
-        return ctx?.makeImage() ?? CGContext(data: nil, width: 1, height: 1,
-                                             bitsPerComponent: 8, bytesPerRow: 4,
-                                             space: CGColorSpaceCreateDeviceRGB(),
-                                             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!.makeImage()!
-    }
-
     /// 録画を停止
     public func stopRecording() async {
         await recordingSession?.stop()

@@ -158,6 +158,9 @@ struct ClicherApp: App {
         annotateWindow.onComplete = { image in
             ImageExporter.copyToClipboard(image)
         }
+        annotateWindow.onError = { message in
+            toastOverlay.show(message, style: .error)
+        }
 
         appDelegate.configure(
             appState: appState,

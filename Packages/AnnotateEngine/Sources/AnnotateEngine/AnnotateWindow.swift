@@ -12,6 +12,7 @@ public final class AnnotateWindow {
 
     /// エディタ完了時のコールバック（エクスポートされた画像）
     public var onComplete: ((CGImage) -> Void)?
+    public var onError: ((String) -> Void)?
 
     /// デフォルトブランドプリセット（設定されている場合、ツールの初期色に適用）
     public var defaultPreset: BrandPreset?
@@ -81,6 +82,7 @@ public final class AnnotateWindow {
     private func exportAndClose(document: AnnotateDocument) {
         guard var image = renderDocument(document) else {
             Logger.capture.error("Annotate エクスポート失敗: renderDocument が nil")
+            onError?(L10n.error)
             close()
             return
         }
