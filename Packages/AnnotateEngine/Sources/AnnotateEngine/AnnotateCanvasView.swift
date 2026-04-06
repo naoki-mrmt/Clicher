@@ -4,6 +4,7 @@ import SharedModels
 
 /// Core Graphics ベースのアノテーションキャンバス
 /// マウスイベントで描画操作を行い、全アノテーションを合成描画する
+@MainActor
 public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     public var document: AnnotateDocument? {
         didSet {
