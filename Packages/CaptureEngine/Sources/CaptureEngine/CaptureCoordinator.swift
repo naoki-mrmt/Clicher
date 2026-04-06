@@ -36,6 +36,10 @@ public final class CaptureCoordinator {
     public var onProcessingStart: ((String) -> Void)?
     public var onProcessingEnd: (() -> Void)?
 
+    /// 録画開始/停止コールバック（RecordingIndicator 表示用）
+    public var onRecordingStarted: (() -> Void)?
+    public var onRecordingStopped: (() -> Void)?
+
     /// 録画中かどうか
     public private(set) var isRecording = false
 
@@ -393,31 +397,71 @@ public final class CaptureCoordinator {
     // MARK: - Screen Recording
 
     private func startRecording() async {
-        // エリア選択（キャンセルでフルスクリーン録画）
-        let areaRect = await AreaSelectionOverlay.selectArea()
-        var sckRect: CGRect?
+        // オーバーレイの暗転/モードタブを隠してエリア選択
+        inlineAnnotate?.hideModeTab()
+        inlineAnnotate?.hideDim()
+        try? await Task.sleep(for: .milliseconds(16))
 
-        if let macRect = areaRect {
-            let screenHeight = ScreenUtilities.activeScreenFrame.height
-            sckRect = CGRect(
-                x: macRect.origin.x,
-                y: screenHeight - macRect.origin.y - macRect.height,
-                width: macRect.width,
-                height: macRect.height
+        let areaRect = await AreaSelectionOverlay.selectArea()
+
+        // ESC キャンセル
+        guard let macRect = areaRect else {
+            inlineAnnotate?.dismiss()
+            inlineAnnotate = nil
+            isCapturing = false
+            return
+        }
+
+        let screenHeight = ScreenUtilities.activeScreenFrame.height
+        let sckRect = CGRect(
+            x: macRect.origin.x,
+            y: screenHeight - macRect.origin.y - macRect.height,
+            width: macRect.width,
+            height: macRect.height
+        )
+
+        // 録画待機画面を表示（開始ボタン押下待ち）
+        let overlay = inlineAnnotate ?? InlineAnnotateOverlay()
+        inlineAnnotate = overlay
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            overlay.showRecordingReady(
+                screenRect: macRect,
+                onStart: {
+                    continuation.resume()
+                },
+                onCancel: { [weak self] in
+                    self?.inlineAnnotate = nil
+                    self?.isCapturing = false
+                    continuation.resume()
+                }
             )
         }
 
+        // キャンセルされた場合
+        guard isCapturing else { return }
+
+        // 録画開始
         isRecording = true
 
         let session = ScreenRecordingSession()
         session.onComplete = { [weak self] url in
+            guard let self else { return }
             Logger.capture.info("録画ファイル: \(url.path)")
-            self?.isRecording = false
+            isRecording = false
+            onRecordingStopped?()
+            let result = CaptureResult(image: createPlaceholderImage(), mode: .recording)
+            lastResult = result
+            onCaptureComplete?(result)
+        }
+        session.onError = { [weak self] message in
+            self?.onError?(message)
         }
         recordingSession = session
 
         do {
             try await session.start(sourceRect: sckRect)
+            onRecordingStarted?()
         } catch {
             Logger.capture.error("録画開始失敗: \(error)")
             onError?("録画開始失敗: \(error.localizedDescription)")
@@ -426,10 +470,23 @@ public final class CaptureCoordinator {
         }
     }
 
+    /// プレースホルダー画像（録画完了時の通知用）
+    private func createPlaceholderImage() -> CGImage {
+        let ctx = CGContext(data: nil, width: 1, height: 1,
+                           bitsPerComponent: 8, bytesPerRow: 0,
+                           space: CGColorSpaceCreateDeviceRGB(),
+                           bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)
+        return ctx?.makeImage() ?? CGContext(data: nil, width: 1, height: 1,
+                                             bitsPerComponent: 8, bytesPerRow: 4,
+                                             space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!.makeImage()!
+    }
+
     /// 録画を停止
     public func stopRecording() async {
         await recordingSession?.stop()
         recordingSession = nil
         isRecording = false
+        onRecordingStopped?()
     }
 }

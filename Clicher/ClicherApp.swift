@@ -138,6 +138,21 @@ struct ClicherApp: App {
             toastOverlay.dismiss()
         }
 
+        // 録画開始/停止 → RecordingIndicator 表示
+        var recordingIndicator: RecordingIndicator?
+        captureCoordinator.onRecordingStarted = {
+            let indicator = RecordingIndicator()
+            indicator.onStop = {
+                Task { await captureCoordinator.stopRecording() }
+            }
+            indicator.show()
+            recordingIndicator = indicator
+        }
+        captureCoordinator.onRecordingStopped = {
+            recordingIndicator?.dismiss()
+            recordingIndicator = nil
+        }
+
         // Annotate 完了 → クリップボードにコピー
         annotateWindow.onComplete = { image in
             ImageExporter.copyToClipboard(image)

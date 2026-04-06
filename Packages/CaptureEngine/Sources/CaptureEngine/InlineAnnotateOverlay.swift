@@ -307,6 +307,99 @@ public final class InlineAnnotateOverlay {
         }
     }
 
+    // MARK: - Recording Ready
+
+    /// 録画待機状態を表示（エリア選択後、開始ボタン押下待ち）
+    public func showRecordingReady(screenRect: CGRect, onStart: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        // 既存のキャンバス/ツールバーをクリア
+        canvasWindow?.orderOut(nil)
+        canvasWindow = nil
+        toolbarWindow?.orderOut(nil)
+        toolbarWindow = nil
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        // 背景暗転
+        if dimWindow == nil {
+            showDimWindow()
+        } else {
+            dimWindow?.orderFrontRegardless()
+        }
+
+        // 選択範囲のハイライト枠（録画対象を視覚的に示す）
+        let highlightView = RecordingHighlightView(frame: NSRect(origin: .zero, size: screenRect.size))
+        let cw = KeyableBorderlessWindow(
+            contentRect: NSRect(origin: screenRect.origin, size: screenRect.size),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        cw.level = .screenSaver
+        cw.isOpaque = false
+        cw.backgroundColor = .clear
+        cw.hasShadow = false
+        cw.contentView = highlightView
+        cw.orderFrontRegardless()
+        self.canvasWindow = cw
+
+        // モードタブを非表示
+        modeTabWindow?.orderOut(nil)
+        modeTabWindow = nil
+
+        // 録画開始ツールバー
+        let toolbarView = RecordingReadyToolbarView(
+            onStart: { [weak self] in
+                self?.dismiss()
+                onStart()
+            },
+            onCancel: { [weak self] in
+                self?.dismiss()
+                onCancel()
+            }
+        )
+        let hostingView = NSHostingView(rootView: toolbarView)
+        let fittingSize = hostingView.fittingSize
+        let toolbarSize = NSSize(width: max(fittingSize.width, 200), height: fittingSize.height)
+        hostingView.setFrameSize(toolbarSize)
+
+        let spaceBelow = screenRect.origin.y
+        let toolbarY: CGFloat
+        if spaceBelow >= toolbarSize.height + 16 {
+            toolbarY = screenRect.origin.y - toolbarSize.height - 8
+        } else {
+            toolbarY = screenRect.maxY + 8
+        }
+
+        let visibleFrame = ScreenUtilities.activeVisibleFrame
+        let rawX = screenRect.midX - toolbarSize.width / 2
+        let toolbarX = max(visibleFrame.minX + 8, min(rawX, visibleFrame.maxX - toolbarSize.width - 8))
+
+        let panel = NSPanel(
+            contentRect: NSRect(origin: NSPoint(x: toolbarX, y: toolbarY), size: toolbarSize),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.contentView = hostingView
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.orderFrontRegardless()
+        self.toolbarWindow = panel
+
+        CATransaction.commit()
+
+        setupKeyMonitor()
+        // ESC でキャンセル
+        self.onCancel = {
+            onCancel()
+        }
+    }
+
     // MARK: - Actions
 
     private func handleDone() {
@@ -522,5 +615,61 @@ struct ModeTabBarView: View {
         .padding(4)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary, lineWidth: 0.5))
+    }
+}
+
+// MARK: - Recording Ready Toolbar
+
+struct RecordingReadyToolbarView: View {
+    let onStart: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // キャンセル
+            Button { onCancel() } label: {
+                Image(systemName: "xmark")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.cancel)
+
+            Spacer()
+
+            // 録画開始ボタン
+            Button { onStart() } label: {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 10, height: 10)
+                    Text(L10n.startRecording)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.startRecording)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary, lineWidth: 0.5))
+    }
+}
+
+// MARK: - Recording Highlight View
+
+/// 録画対象エリアのハイライト枠（赤い点線）
+private final class RecordingHighlightView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.red.withAlphaComponent(0.6).setStroke()
+        let path = NSBezierPath(rect: bounds.insetBy(dx: 1.5, dy: 1.5))
+        path.lineWidth = 3
+        let pattern: [CGFloat] = [6, 4]
+        path.setLineDash(pattern, count: pattern.count, phase: 0)
+        path.stroke()
     }
 }

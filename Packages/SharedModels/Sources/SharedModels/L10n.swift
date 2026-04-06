@@ -137,6 +137,11 @@ public enum L10n {
     public static var annotateDone: String { localized(ja: "クリップボードにコピー", en: "Copy to Clipboard") }
     public static var annotateSave: String { localized(ja: "保存", en: "Save") }
 
+    // MARK: - Recording
+
+    public static var startRecording: String { localized(ja: "録画開始", en: "Start Recording") }
+    public static var stopRecording: String { localized(ja: "録画停止", en: "Stop Recording") }
+
     // MARK: - Scroll Capture
 
     public static func frameCount(_ n: Int) -> String {
