@@ -21,8 +21,6 @@ public struct MenuBarView: View {
         self.onCapture = onCapture
     }
 
-    @Environment(\.openSettings) private var openSettings
-
     public var body: some View {
         Group {
             // キャプチャセクション
@@ -61,9 +59,7 @@ public struct MenuBarView: View {
             Divider()
 
             // 設定セクション
-            Button {
-                openSettings()
-            } label: {
+            SettingsLink {
                 Label(L10n.settings, systemImage: "gear")
             }
             .keyboardShortcut(",")
