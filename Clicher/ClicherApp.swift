@@ -139,6 +139,14 @@ struct ClicherApp: App {
             toastOverlay.show(message, style: .error)
         }
 
+        // 長時間処理のローディング表示
+        captureCoordinator.onProcessingStart = { message in
+            toastOverlay.show(message, style: .info, duration: 30)
+        }
+        captureCoordinator.onProcessingEnd = {
+            toastOverlay.dismiss()
+        }
+
         // Annotate 完了 → クリップボードにコピー
         annotateWindow.onComplete = { image in
             ImageExporter.copyToClipboard(image)

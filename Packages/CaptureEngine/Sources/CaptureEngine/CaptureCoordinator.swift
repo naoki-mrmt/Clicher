@@ -32,6 +32,10 @@ public final class CaptureCoordinator {
     /// メッセージにはユーザー向けの説明 + デバッグ用の詳細を含む
     public var onError: ((String) -> Void)?
 
+    /// 長時間処理の開始/終了コールバック（ローディング表示用）
+    public var onProcessingStart: ((String) -> Void)?
+    public var onProcessingEnd: (() -> Void)?
+
     /// 録画中かどうか
     public private(set) var isRecording = false
 
@@ -308,7 +312,9 @@ public final class CaptureCoordinator {
             let image = try await captureService.captureArea(macRect: macRect, display: display)
 
             // OCR 実行してクリップボードにコピー
+            onProcessingStart?(L10n.processingOCR)
             let ocrResult = try await OCRService.recognizeText(from: image)
+            onProcessingEnd?()
             if !ocrResult.isEmpty {
                 let fullText: String
                 if ocrResult.barcodes.isEmpty {
@@ -371,8 +377,10 @@ public final class CaptureCoordinator {
 
     /// スクロールキャプチャを完了
     public func finishScrollCapture() {
+        onProcessingStart?(L10n.processingStitch)
         _ = scrollSession?.finish()
         scrollSession = nil
+        onProcessingEnd?()
     }
 
     /// スクロールキャプチャをキャンセル

@@ -17,8 +17,8 @@ public final class WindowSelectionOverlay {
         let bundleID = Bundle.main.bundleIdentifier
         let validWindows = windows.filter { window in
             window.isOnScreen
-                && window.frame.width > 1
-                && window.frame.height > 1
+                && window.frame.width > 10
+                && window.frame.height > 10
                 && window.owningApplication?.bundleIdentifier != bundleID
         }
 

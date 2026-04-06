@@ -235,4 +235,9 @@ public enum L10n {
 
     public static var crosshair: String { localized(ja: "クロスヘア", en: "Crosshair") }
     public static var loupe: String { localized(ja: "ルーペ", en: "Loupe") }
+
+    // MARK: - Processing
+
+    public static var processingOCR: String { localized(ja: "テキストを認識中...", en: "Recognizing text...") }
+    public static var processingStitch: String { localized(ja: "画像を結合中...", en: "Stitching images...") }
 }

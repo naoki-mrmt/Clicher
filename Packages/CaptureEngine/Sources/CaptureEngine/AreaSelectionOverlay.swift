@@ -225,7 +225,7 @@ private final class AreaSelectionView: NSView {
         switch phase {
         case .drawing:
             currentPoint = point
-            guard let rect = selectionRect, rect.width > 2, rect.height > 2 else {
+            guard let rect = selectionRect, rect.width >= 4, rect.height >= 4 else {
                 // 小さすぎる → リセット
                 startPoint = nil
                 currentPoint = nil
