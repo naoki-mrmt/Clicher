@@ -34,6 +34,7 @@ struct ClicherApp: App {
                 appState: appState,
                 permissionManager: permissionManager,
                 loginItemManager: loginItemManager,
+                captureCoordinator: captureCoordinator,
                 onCapture: handleCapture,
                 configureIfNeeded: configureIfNeeded,
                 isPermissionGuideVisible: $appState.isPermissionGuideVisible
@@ -197,6 +198,7 @@ private struct MenuBarContent: View {
     let appState: AppState
     let permissionManager: PermissionManager
     let loginItemManager: LoginItemManager
+    let captureCoordinator: CaptureCoordinator
     let onCapture: (CaptureMode) -> Void
     let configureIfNeeded: () -> Void
     @Binding var isPermissionGuideVisible: Bool
@@ -208,7 +210,11 @@ private struct MenuBarContent: View {
             appState: appState,
             permissionManager: permissionManager,
             loginItemManager: loginItemManager,
-            onCapture: onCapture
+            onCapture: onCapture,
+            isRecording: captureCoordinator.isRecording,
+            onStopRecording: {
+                Task { await captureCoordinator.stopRecording() }
+            }
         )
         .onAppear {
             configureIfNeeded()

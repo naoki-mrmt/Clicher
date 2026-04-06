@@ -8,21 +8,38 @@ public struct MenuBarView: View {
     public let permissionManager: PermissionManager
     public let loginItemManager: LoginItemManager
     public let onCapture: (CaptureMode) -> Void
+    public let isRecording: Bool
+    public var onStopRecording: (() -> Void)?
 
     public init(
         appState: AppState,
         permissionManager: PermissionManager,
         loginItemManager: LoginItemManager,
-        onCapture: @escaping (CaptureMode) -> Void
+        onCapture: @escaping (CaptureMode) -> Void,
+        isRecording: Bool = false,
+        onStopRecording: (() -> Void)? = nil
     ) {
         self.appState = appState
         self.permissionManager = permissionManager
         self.loginItemManager = loginItemManager
         self.onCapture = onCapture
+        self.isRecording = isRecording
+        self.onStopRecording = onStopRecording
     }
 
     public var body: some View {
         Group {
+            // 録画停止ボタン（録画中のみ表示）
+            if isRecording {
+                Button {
+                    onStopRecording?()
+                } label: {
+                    Label(L10n.stopRecording, systemImage: "stop.circle.fill")
+                        .foregroundStyle(.red)
+                }
+                Divider()
+            }
+
             // キャプチャセクション
             Section(L10n.capture) {
                 ForEach(CaptureMode.availableModes) { mode in
@@ -31,6 +48,7 @@ public struct MenuBarView: View {
                     } label: {
                         Label(mode.label, systemImage: mode.systemImage)
                     }
+                    .disabled(isRecording)
                 }
             }
 

@@ -44,15 +44,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hud.onModeSelected = onCapture
         self.hudWindow = hud
 
-        // ⌘⇧A → Lark 風キャプチャ（画面暗転 + モードタブ + エリア選択）
+        // ⌘⇧A → 録画中なら停止、それ以外なら Lark 風キャプチャ
         HotkeyManager.shared.onHotkeyPressed = { @MainActor [weak self] in
-            guard let self, let pm = self.permissionManager else { return }
+            guard let self, let coordinator = self.captureCoordinator else { return }
+
+            // 録画中なら停止
+            if coordinator.isRecording {
+                Task { await coordinator.stopRecording() }
+                return
+            }
+
+            guard let pm = self.permissionManager else { return }
             pm.checkScreenRecording()
             guard pm.hasScreenRecordingPermission else {
                 pm.requestScreenRecording()
                 return
             }
-            self.captureCoordinator?.startCaptureWithModeBar()
+            coordinator.startCaptureWithModeBar()
         }
 
         // configure() 完了後にタップを再登録して最高優先度を確保（Lark等より優先）
