@@ -24,6 +24,8 @@ public struct MenuBarView: View {
         self.onShowHistory = onShowHistory
     }
 
+    @Environment(\.openSettings) private var openSettings
+
     public var body: some View {
         Group {
             // キャプチャセクション
@@ -71,15 +73,7 @@ public struct MenuBarView: View {
             }
 
             Button {
-                // MenuBarExtra からは activate → 少し待ってから Settings を開く
-                NSApplication.shared.activate(ignoringOtherApps: true)
-                DispatchQueue.main.async {
-                    if #available(macOS 14, *) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    } else {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
-                }
+                openSettings()
             } label: {
                 Label(L10n.settings, systemImage: "gear")
             }
