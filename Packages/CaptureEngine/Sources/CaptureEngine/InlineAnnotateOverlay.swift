@@ -296,7 +296,7 @@ public final class InlineAnnotateOverlay {
         }
     }
 
-    private func removeKeyMonitor() {
+    public func removeKeyMonitor() {
         if let monitor = localKeyMonitor {
             NSEvent.removeMonitor(monitor)
             localKeyMonitor = nil

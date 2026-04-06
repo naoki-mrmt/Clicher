@@ -137,12 +137,17 @@ public final class CaptureCoordinator {
         let overlay = InlineAnnotateOverlay()
         overlay.onModeChanged = { [weak self] mode in
             guard let self else { return }
-            // モード変更: まず全状態をクリーンアップしてから新モード開始
-            inlineAnnotate = nil
-            overlay.dismiss()
             isCapturing = false
             isCountingDown = false
-            startCapture(mode: mode)
+            if mode == .recording {
+                // 録画モード: overlay を維持したままエリア選択に入る
+                executeCapture(mode: mode)
+            } else {
+                // その他: クリーンアップしてから新モード開始
+                inlineAnnotate = nil
+                overlay.dismiss()
+                startCapture(mode: mode)
+            }
         }
         overlay.onCancel = { [weak self] in
             self?.inlineAnnotate = nil
@@ -160,8 +165,9 @@ public final class CaptureCoordinator {
     // MARK: - Area Capture
 
     private func startAreaCapture() async {
-        // エリア選択中は dim を隠す（AreaSelectionOverlay が独自に暗転するため二重を防ぐ）
+        // エリア選択中は dim とキーモニターを隠す（AreaSelectionOverlay が ESC を処理するため）
         inlineAnnotate?.hideDim()
+        inlineAnnotate?.removeKeyMonitor()
 
         // エリア選択と SCShareableContent 取得を並行実行（速度改善）
         async let selectionTask = AreaSelectionOverlay.selectArea()
@@ -397,10 +403,9 @@ public final class CaptureCoordinator {
     // MARK: - Screen Recording
 
     private func startRecording() async {
-        // オーバーレイの暗転/モードタブを隠してエリア選択
-        inlineAnnotate?.hideModeTab()
+        // エリア選択中は dim とキーモニターを隠す
         inlineAnnotate?.hideDim()
-        try? await Task.sleep(for: .milliseconds(16))
+        inlineAnnotate?.removeKeyMonitor()
 
         let areaRect = await AreaSelectionOverlay.selectArea()
 
@@ -424,10 +429,12 @@ public final class CaptureCoordinator {
         let overlay = inlineAnnotate ?? InlineAnnotateOverlay()
         inlineAnnotate = overlay
 
+        var didStart = false
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             overlay.showRecordingReady(
                 screenRect: macRect,
                 onStart: {
+                    didStart = true
                     continuation.resume()
                 },
                 onCancel: { [weak self] in
@@ -439,9 +446,12 @@ public final class CaptureCoordinator {
         }
 
         // キャンセルされた場合
-        guard isCapturing else { return }
+        guard didStart else { return }
 
-        // 録画開始
+        // 全オーバーレイを消して録画開始
+        inlineAnnotate?.dismiss()
+        inlineAnnotate = nil
+
         isRecording = true
 
         let session = ScreenRecordingSession()
@@ -449,10 +459,8 @@ public final class CaptureCoordinator {
             guard let self else { return }
             Logger.capture.info("録画ファイル: \(url.path)")
             isRecording = false
+            isCapturing = false
             onRecordingStopped?()
-            let result = CaptureResult(image: createPlaceholderImage(), mode: .recording)
-            lastResult = result
-            onCaptureComplete?(result)
         }
         session.onError = { [weak self] message in
             self?.onError?(message)
@@ -466,6 +474,7 @@ public final class CaptureCoordinator {
             Logger.capture.error("録画開始失敗: \(error)")
             onError?("録画開始失敗: \(error.localizedDescription)")
             isRecording = false
+            isCapturing = false
             recordingSession = nil
         }
     }
