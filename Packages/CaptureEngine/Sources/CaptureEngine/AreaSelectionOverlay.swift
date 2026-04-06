@@ -61,14 +61,14 @@ private final class AreaSelectionWindow: NSWindow {
         NSApp.activate(ignoringOtherApps: true)
         orderFrontRegardless()
         makeKey()
-        NSCursor.crosshair.set()
+        NSCursor.crosshair.push()
         if let view = contentView {
             invalidateCursorRects(for: view)
         }
     }
 
     private func finishSelection(rect: CGRect?) {
-        NSCursor.arrow.set()
+        NSCursor.pop()
         orderOut(nil)
         completionHandler?(rect)
         completionHandler = nil
