@@ -16,6 +16,7 @@ public struct VideoEditorView: View {
     @State private var trimEnd: Double = 1
     @State private var selectedQuality: QualityOption = .high
     @State private var isExporting = false
+    @State private var errorMessage: String?
 
     public init(videoURL: URL, onExport: ((URL) -> Void)? = nil, onDismiss: (() -> Void)? = nil) {
         self.videoURL = videoURL
@@ -137,6 +138,14 @@ public struct VideoEditorView: View {
         .padding()
         .frame(width: 480, height: 400)
         .task { await loadInfo() }
+        .alert(L10n.error, isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button(L10n.ok) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 
     private func loadInfo() async {
@@ -166,6 +175,7 @@ public struct VideoEditorView: View {
                 onExport?(finalURL)
             } catch {
                 Logger.capture.error("動画エクスポート失敗: \(error)")
+                errorMessage = error.localizedDescription
             }
             isExporting = false
         }
@@ -179,6 +189,7 @@ public struct VideoEditorView: View {
                 onExport?(gifURL)
             } catch {
                 Logger.capture.error("GIF 変換失敗: \(error)")
+                errorMessage = error.localizedDescription
             }
             isExporting = false
         }

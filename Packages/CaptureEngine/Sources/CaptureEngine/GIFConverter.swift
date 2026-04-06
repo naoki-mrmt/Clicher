@@ -65,14 +65,20 @@ public enum GIFConverter {
         generator.maximumSize = CGSize(width: targetWidth, height: targetHeight)
 
         let totalFrames = Int(durationSeconds * Double(fps))
+        var addedFrames = 0
         for i in 0..<totalFrames {
             let time = CMTime(seconds: Double(i) * frameDelay, preferredTimescale: 600)
             do {
                 let (image, _) = try await generator.image(at: time)
                 CGImageDestinationAddImage(destination, image, frameProperties as CFDictionary)
+                addedFrames += 1
             } catch {
                 Logger.capture.warning("GIF フレーム \(i) の抽出に失敗: \(error)")
             }
+        }
+
+        guard addedFrames > 0 else {
+            throw GIFError.noFramesExtracted
         }
 
         guard CGImageDestinationFinalize(destination) else {
@@ -85,8 +91,18 @@ public enum GIFConverter {
 }
 
 /// GIF 変換エラー
-public enum GIFError: Error, Sendable {
+public enum GIFError: Error, Sendable, LocalizedError {
     case noVideoTrack
     case cannotCreateDestination
+    case noFramesExtracted
     case finalizeFailed
+
+    public var errorDescription: String? {
+        switch self {
+        case .noVideoTrack: "動画トラックが見つかりません"
+        case .cannotCreateDestination: "GIF ファイルを作成できません"
+        case .noFramesExtracted: "フレームの抽出に失敗しました"
+        case .finalizeFailed: "GIF の書き出しに失敗しました"
+        }
+    }
 }

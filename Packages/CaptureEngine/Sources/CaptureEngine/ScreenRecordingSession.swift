@@ -3,6 +3,7 @@ import AVFoundation
 import AppKit
 import OSLog
 import Observation
+import SharedModels
 import Utilities
 
 /// 画面録画セッション
@@ -25,6 +26,9 @@ public final class ScreenRecordingSession {
     /// 録画完了コールバック（MP4 ファイルの URL）
     public var onComplete: ((URL) -> Void)?
 
+    /// 録画エラーコールバック
+    public var onError: ((String) -> Void)?
+
     private var stream: SCStream?
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
@@ -42,6 +46,7 @@ public final class ScreenRecordingSession {
     nonisolated(unsafe) private var lockedAudioInput: AVAssetWriterInput?
 
     public init() {}
+
 
     /// 録画を開始
     /// - Parameters:
@@ -193,16 +198,29 @@ public final class ScreenRecordingSession {
 
         // finishWriting 後のエラーチェック
         if let writer = assetWriter, writer.status == .failed {
-            Logger.capture.error("録画ファイルの書き込み失敗: \(writer.error?.localizedDescription ?? "不明")")
+            let message = writer.error?.localizedDescription ?? "不明"
+            Logger.capture.error("録画ファイルの書き込み失敗: \(message)")
+            onError?(L10n.error)
+            // 破損ファイルを削除
+            if let url = outputURL {
+                try? FileManager.default.removeItem(at: url)
+            }
         } else if let url = outputURL {
-            onComplete?(url)
-            Logger.capture.info("画面録画を停止: \(url.lastPathComponent) (\(Int(self.duration))秒)")
+            if duration < 0.5 {
+                // 極短録画は無効として扱う
+                Logger.capture.warning("録画時間が短すぎます: \(self.duration)秒")
+                try? FileManager.default.removeItem(at: url)
+            } else {
+                onComplete?(url)
+                Logger.capture.info("画面録画を停止: \(url.lastPathComponent) (\(Int(self.duration))秒)")
+            }
         }
 
         assetWriter = nil
         videoInput = nil
         audioInput = nil
         adaptor = nil
+        outputURL = nil
     }
 
     /// ロック保護下の入力参照を設定（@MainActor の同期コンテキストから呼ぶ）
