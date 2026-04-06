@@ -118,6 +118,10 @@ public final class InlineAnnotateOverlay {
     /// 全ウィンドウを閉じる
     public func dismiss() {
         removeKeyMonitor()
+        // カラーパレットが開いていれば閉じる
+        if NSColorPanel.shared.isVisible {
+            NSColorPanel.shared.orderOut(nil)
+        }
         dimWindow?.orderOut(nil)
         dimWindow = nil
         canvasWindow?.orderOut(nil)
@@ -173,7 +177,7 @@ public final class InlineAnnotateOverlay {
 
         let hostingView = NSHostingView(rootView: toolbarView)
         let fittingSize = hostingView.fittingSize
-        let toolbarSize = NSSize(width: max(fittingSize.width, 480), height: fittingSize.height)
+        let toolbarSize = fittingSize
         hostingView.setFrameSize(toolbarSize)
 
         // macOS 座標（左下原点）: origin.y が小さい = 画面下部
