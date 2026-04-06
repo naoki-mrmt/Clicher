@@ -28,7 +28,7 @@ struct ClicherApp: App {
         // メニューバー（録画中はアイコン変更）
         MenuBarExtra(
             "Clicher",
-            systemImage: captureCoordinator.isRecording ? "record.circle" : "camera.viewfinder"
+            systemImage: captureCoordinator.isRecording ? "record.circle.fill" : "camera.fill"
         ) {
             MenuBarContent(
                 appState: appState,
