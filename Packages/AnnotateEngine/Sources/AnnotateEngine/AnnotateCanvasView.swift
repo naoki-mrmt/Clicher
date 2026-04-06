@@ -34,6 +34,13 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     override public init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.activeInKeyWindow, .mouseMoved, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
     }
 
     @available(*, unavailable)
@@ -191,6 +198,20 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
 
         self.activeItem = nil
         needsDisplay = true
+    }
+
+    override public func mouseMoved(with event: NSEvent) {
+        guard let document else { return }
+        let point = convert(event.locationInWindow, from: nil)
+
+        // 既存アノテーション上ならムーブカーソル
+        if document.items.contains(where: {
+            $0.boundingRect.insetBy(dx: -6, dy: -6).contains(point)
+        }) {
+            NSCursor.openHand.set()
+        } else {
+            NSCursor.crosshair.set()
+        }
     }
 
     // MARK: - Text Editing

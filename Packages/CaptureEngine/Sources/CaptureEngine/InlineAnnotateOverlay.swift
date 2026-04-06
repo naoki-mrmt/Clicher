@@ -391,19 +391,21 @@ struct InlineToolbarView: View {
                 .labelsHidden()
                 .frame(width: 28)
 
-            // 線幅
-            Menu {
-                ForEach([2, 4, 6, 8], id: \.self) { width in
-                    Button("\(width)pt") {
-                        document.currentStyle.lineWidth = CGFloat(width)
-                    }
-                }
-            } label: {
+            // 線幅スライダー
+            HStack(spacing: 4) {
                 Image(systemName: "lineweight")
-                    .frame(width: 28, height: 28)
+                    .font(.caption)
+                Slider(
+                    value: Bindable(document).currentStyle.lineWidth,
+                    in: 1...20,
+                    step: 1
+                )
+                .frame(width: 60)
+                Text("\(Int(document.currentStyle.lineWidth))")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .frame(width: 16)
             }
-            .menuStyle(.borderlessButton)
-            .frame(width: 28)
             .accessibilityLabel("Line width")
 
             Spacer()
