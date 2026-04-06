@@ -122,32 +122,30 @@ public final class CaptureCoordinator {
             case .scroll:
                 await startScrollCapture()
             case .recording:
-                await startRecording()
+                // 録画はモードタブ経由で処理（startCaptureWithModeBar から呼ばれる）
+                // メニューから直接呼ばれた場合は startCaptureWithModeBar にフォールバック
+                isCapturing = false
+                startCaptureWithModeBar()
+                return
             }
         }
     }
 
     // MARK: - Lark-style Capture (Mode Bar + Area Selection)
 
-    /// Lark 風キャプチャ: 画面暗転 + モードタブバー → エリア選択 → インライン編集
+    /// モードタブで選択中のモード（エリア選択中にモード変更可能）
+    private var modeBarSelectedMode: CaptureMode = .area
+
+    /// Lark 風キャプチャ: 画面暗転 + モードタブバー → 共通エリア選択 → モード別処理
     public func startCaptureWithModeBar() {
         guard !isCapturing, !isCountingDown else { return }
+        isCapturing = true
+        modeBarSelectedMode = .area
 
-        // モードタブバー + 背景暗転を表示してからエリア選択を開始
         let overlay = InlineAnnotateOverlay()
         overlay.onModeChanged = { [weak self] mode in
-            guard let self else { return }
-            isCapturing = false
-            isCountingDown = false
-            if mode == .recording {
-                // 録画モード: overlay を維持したままエリア選択に入る
-                executeCapture(mode: mode)
-            } else {
-                // その他: クリーンアップしてから新モード開始
-                inlineAnnotate = nil
-                overlay.dismiss()
-                startCapture(mode: mode)
-            }
+            // モード切替は状態更新のみ（エリア選択は継続）
+            self?.modeBarSelectedMode = mode
         }
         overlay.onCancel = { [weak self] in
             self?.inlineAnnotate = nil
@@ -158,11 +156,203 @@ public final class CaptureCoordinator {
         // 背景暗転 + モードタブを表示
         overlay.showModeTabOnly(currentMode: .area)
 
-        // デフォルトでエリアキャプチャを開始（isCapturing は内部で設定される）
-        executeCapture(mode: .area)
+        // 共通エリア選択 → 完了後にモード別処理
+        Task {
+            await startModeBarCapture(overlay: overlay)
+        }
     }
 
-    // MARK: - Area Capture
+    /// モードタブ付きキャプチャの共通フロー
+    private func startModeBarCapture(overlay: InlineAnnotateOverlay) async {
+        // エリア選択中は dim とキーモニターを解除
+        overlay.hideDim()
+        overlay.removeKeyMonitor()
+
+        let areaRect = await AreaSelectionOverlay.selectArea()
+
+        guard let macRect = areaRect else {
+            // ESC キャンセル
+            overlay.dismiss()
+            inlineAnnotate = nil
+            isCapturing = false
+            return
+        }
+
+        // エリア選択完了時点のモードで分岐
+        let mode = modeBarSelectedMode
+
+        switch mode {
+        case .area:
+            // スクリーンショット: キャプチャ → インライン編集
+            await captureAreaAfterSelection(macRect: macRect, overlay: overlay)
+        case .recording:
+            // 画面録画: 録画待機画面 → 開始ボタン → 録画
+            await startRecordingAfterSelection(macRect: macRect, overlay: overlay)
+        case .ocr:
+            // OCR: キャプチャ → テキスト認識
+            overlay.dismiss()
+            inlineAnnotate = nil
+            await startOCRAfterSelection(macRect: macRect)
+        default:
+            // その他: 既存フローにフォールバック
+            overlay.dismiss()
+            inlineAnnotate = nil
+            executeCapture(mode: mode)
+        }
+    }
+
+    // MARK: - Area Capture (after mode bar selection)
+
+    /// モードタブ経由でエリア選択済みの場合のキャプチャ処理
+    private func captureAreaAfterSelection(macRect: CGRect, overlay: InlineAnnotateOverlay) async {
+        do {
+            let content = try await captureService.availableContent()
+            guard let display = content.displays.first else {
+                Logger.capture.error("ディスプレイが見つかりません")
+                isCapturing = false
+                return
+            }
+
+            // キャプチャ前にオーバーレイを非表示
+            overlay.hideModeTab()
+            overlay.hideDim()
+            try await Task.sleep(for: .milliseconds(16))
+
+            let image = try await captureService.captureArea(macRect: macRect, display: display)
+
+            overlay.onComplete = { [weak self] editedImage in
+                guard let self else { return }
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: macRect)
+                lastResult = result
+                onCaptureComplete?(result)
+                inlineAnnotate = nil
+                isCapturing = false
+            }
+            overlay.onSave = { [weak self] editedImage in
+                guard let self else { return }
+                let result = CaptureResult(image: editedImage, mode: .area, captureRect: macRect)
+                lastResult = result
+                onCaptureComplete?(result)
+                inlineAnnotate = nil
+                isCapturing = false
+            }
+            overlay.onCancel = { [weak self] in
+                self?.inlineAnnotate = nil
+                self?.isCapturing = false
+            }
+            overlay.show(image: image, screenRect: macRect)
+
+        } catch {
+            let nsError = error as NSError
+            Logger.capture.error("エリアキャプチャ失敗: domain=\(nsError.domain) code=\(nsError.code) \(error)")
+            onError?("エリアキャプチャ失敗: [\(nsError.domain):\(nsError.code)] \(error.localizedDescription)")
+            overlay.dismiss()
+            inlineAnnotate = nil
+            isCapturing = false
+        }
+    }
+
+    /// モードタブ経由でエリア選択済みの場合の OCR 処理
+    private func startOCRAfterSelection(macRect: CGRect) async {
+        do {
+            let content = try await captureService.availableContent()
+            guard let display = content.displays.first else {
+                Logger.capture.error("ディスプレイが見つかりません")
+                isCapturing = false
+                return
+            }
+
+            let image = try await captureService.captureArea(macRect: macRect, display: display)
+
+            onProcessingStart?(L10n.processingOCR)
+            let ocrResult = try await OCRService.recognizeText(from: image)
+            onProcessingEnd?()
+
+            if !ocrResult.isEmpty {
+                let fullText: String
+                if ocrResult.barcodes.isEmpty {
+                    fullText = ocrResult.text
+                } else {
+                    let barcodeSection = ocrResult.barcodes.joined(separator: "\n")
+                    fullText = ocrResult.text.isEmpty
+                        ? barcodeSection
+                        : "\(ocrResult.text)\n\n--- Barcodes ---\n\(barcodeSection)"
+                }
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(fullText, forType: .string)
+            }
+
+            let result = CaptureResult(image: image, mode: .ocr, captureRect: macRect, ocrText: ocrResult.text)
+            lastResult = result
+            onCaptureComplete?(result)
+        } catch {
+            Logger.capture.error("OCR 失敗: \(error)")
+            onError?("OCR 失敗: \(error.localizedDescription)")
+        }
+        isCapturing = false
+    }
+
+    /// モードタブ経由でエリア選択済みの場合の録画処理
+    private func startRecordingAfterSelection(macRect: CGRect, overlay: InlineAnnotateOverlay) async {
+        let screenHeight = ScreenUtilities.activeScreenFrame.height
+        let sckRect = CGRect(
+            x: macRect.origin.x,
+            y: screenHeight - macRect.origin.y - macRect.height,
+            width: macRect.width,
+            height: macRect.height
+        )
+
+        var didStart = false
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            overlay.showRecordingReady(
+                screenRect: macRect,
+                onStart: {
+                    didStart = true
+                    continuation.resume()
+                },
+                onCancel: { [weak self] in
+                    self?.inlineAnnotate = nil
+                    self?.isCapturing = false
+                    continuation.resume()
+                }
+            )
+        }
+
+        guard didStart else { return }
+
+        // 全オーバーレイを消して録画開始
+        overlay.dismiss()
+        inlineAnnotate = nil
+
+        isRecording = true
+
+        let session = ScreenRecordingSession()
+        session.onComplete = { [weak self] url in
+            guard let self else { return }
+            Logger.capture.info("録画ファイル: \(url.path)")
+            isRecording = false
+            isCapturing = false
+            onRecordingStopped?()
+        }
+        session.onError = { [weak self] message in
+            self?.onError?(message)
+        }
+        recordingSession = session
+
+        do {
+            try await session.start(sourceRect: sckRect)
+            onRecordingStarted?()
+        } catch {
+            Logger.capture.error("録画開始失敗: \(error)")
+            onError?("録画開始失敗: \(error.localizedDescription)")
+            isRecording = false
+            isCapturing = false
+            recordingSession = nil
+        }
+    }
+
+    // MARK: - Area Capture (standalone)
 
     private func startAreaCapture() async {
         // エリア選択中は dim とキーモニターを隠す（AreaSelectionOverlay が ESC を処理するため）
@@ -398,85 +588,6 @@ public final class CaptureCoordinator {
         scrollSession?.cancel()
         scrollSession = nil
         isCapturing = false
-    }
-
-    // MARK: - Screen Recording
-
-    private func startRecording() async {
-        // エリア選択中は dim とキーモニターを隠す
-        inlineAnnotate?.hideDim()
-        inlineAnnotate?.removeKeyMonitor()
-
-        let areaRect = await AreaSelectionOverlay.selectArea()
-
-        // ESC キャンセル
-        guard let macRect = areaRect else {
-            inlineAnnotate?.dismiss()
-            inlineAnnotate = nil
-            isCapturing = false
-            return
-        }
-
-        let screenHeight = ScreenUtilities.activeScreenFrame.height
-        let sckRect = CGRect(
-            x: macRect.origin.x,
-            y: screenHeight - macRect.origin.y - macRect.height,
-            width: macRect.width,
-            height: macRect.height
-        )
-
-        // 録画待機画面を表示（開始ボタン押下待ち）
-        let overlay = inlineAnnotate ?? InlineAnnotateOverlay()
-        inlineAnnotate = overlay
-
-        var didStart = false
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            overlay.showRecordingReady(
-                screenRect: macRect,
-                onStart: {
-                    didStart = true
-                    continuation.resume()
-                },
-                onCancel: { [weak self] in
-                    self?.inlineAnnotate = nil
-                    self?.isCapturing = false
-                    continuation.resume()
-                }
-            )
-        }
-
-        // キャンセルされた場合
-        guard didStart else { return }
-
-        // 全オーバーレイを消して録画開始
-        inlineAnnotate?.dismiss()
-        inlineAnnotate = nil
-
-        isRecording = true
-
-        let session = ScreenRecordingSession()
-        session.onComplete = { [weak self] url in
-            guard let self else { return }
-            Logger.capture.info("録画ファイル: \(url.path)")
-            isRecording = false
-            isCapturing = false
-            onRecordingStopped?()
-        }
-        session.onError = { [weak self] message in
-            self?.onError?(message)
-        }
-        recordingSession = session
-
-        do {
-            try await session.start(sourceRect: sckRect)
-            onRecordingStarted?()
-        } catch {
-            Logger.capture.error("録画開始失敗: \(error)")
-            onError?("録画開始失敗: \(error.localizedDescription)")
-            isRecording = false
-            isCapturing = false
-            recordingSession = nil
-        }
     }
 
     /// プレースホルダー画像（録画完了時の通知用）
