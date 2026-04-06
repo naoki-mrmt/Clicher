@@ -88,6 +88,7 @@ public struct QuickAccessView: View {
             .buttonStyle(.plain)
             .padding(4)
             .opacity(isHovering ? 1 : 0)
+            .accessibilityLabel(L10n.cancel)
         }
     }
 

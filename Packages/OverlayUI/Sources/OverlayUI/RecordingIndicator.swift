@@ -44,14 +44,12 @@ public final class RecordingIndicator {
         panel.titlebarAppearsTransparent = true
 
         // 画面上部中央に配置
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let origin = NSPoint(
-                x: screenFrame.midX - 80,
-                y: screenFrame.maxY - 50
-            )
-            panel.setFrameOrigin(origin)
-        }
+        let screenFrame = ScreenUtilities.activeVisibleFrame
+        let origin = NSPoint(
+            x: screenFrame.midX - 80,
+            y: screenFrame.maxY - 50
+        )
+        panel.setFrameOrigin(origin)
 
         panel.orderFrontRegardless()
         self.panel = panel

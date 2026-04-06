@@ -42,14 +42,12 @@ public final class CountdownOverlay {
         panel.titlebarAppearsTransparent = true
 
         // 画面中央に配置
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let origin = NSPoint(
-                x: screenFrame.midX - 60,
-                y: screenFrame.midY - 60
-            )
-            panel.setFrameOrigin(origin)
-        }
+        let screenFrame = ScreenUtilities.activeVisibleFrame
+        let origin = NSPoint(
+            x: screenFrame.midX - 60,
+            y: screenFrame.midY - 60
+        )
+        panel.setFrameOrigin(origin)
 
         panel.orderFrontRegardless()
         self.panel = panel

@@ -8,7 +8,7 @@ import OverlayUI
 
 /// AppKit 統合用デリゲート
 /// グローバルホットキーの登録とキャプチャの管理を担当
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var hudWindow: CaptureHUDWindow?
     private var appState: AppState?
     private var captureCoordinator: CaptureCoordinator?
@@ -114,10 +114,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Clicher"
         window.contentView = hostingView
         window.center()
-        window.isReleasedWhenClosed = false
+        window.delegate = self
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         permissionGuideWindow = window
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              window === permissionGuideWindow else { return }
+        permissionGuideWindow = nil
     }
 }

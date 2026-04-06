@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import OSLog
+import SharedModels
 import Utilities
 
 /// キャプチャ画像のプレビューウィンドウ
@@ -32,7 +33,7 @@ public final class PreviewWindow {
             backing: .buffered,
             defer: false
         )
-        window.title = "プレビュー"
+        window.title = L10n.preview
         window.contentView = hostingView
         window.center()
 

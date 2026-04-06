@@ -127,7 +127,7 @@ public final class InlineAnnotateOverlay {
     // MARK: - Dim Window
 
     private func showDimWindow() {
-        guard let screen = NSScreen.main else { return }
+        let screen = ScreenUtilities.activeScreen
 
         let dw = NSWindow(
             contentRect: screen.frame,
@@ -181,7 +181,7 @@ public final class InlineAnnotateOverlay {
         }
 
         // キャンバスの中央に揃える + 画面内にクランプ
-        let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+        let screenFrame = ScreenUtilities.activeVisibleFrame
         let rawX = canvasRect.midX - toolbarSize.width / 2
         let toolbarX = max(screenFrame.minX + 8, min(rawX, screenFrame.maxX - toolbarSize.width - 8))
         let clampedY = max(screenFrame.minY + 8, min(toolbarY, screenFrame.maxY - toolbarSize.height - 8))
@@ -236,11 +236,10 @@ public final class InlineAnnotateOverlay {
         panel.titlebarAppearsTransparent = true
 
         // 画面上部中央
-        if let screen = NSScreen.main {
-            let x = screen.frame.midX - panel.frame.width / 2
-            let y = screen.frame.maxY - panel.frame.height - 40
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
+        let screenFrame = ScreenUtilities.activeScreenFrame
+        let x = screenFrame.midX - panel.frame.width / 2
+        let y = screenFrame.maxY - panel.frame.height - 40
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
 
         panel.orderFrontRegardless()
         self.modeTabWindow = panel
@@ -381,6 +380,7 @@ struct InlineToolbarView: View {
                     in: RoundedRectangle(cornerRadius: 4)
                 )
                 .help(tool.label)
+                .accessibilityLabel(tool.label)
             }
 
             Divider()
@@ -404,6 +404,7 @@ struct InlineToolbarView: View {
             }
             .menuStyle(.borderlessButton)
             .frame(width: 28)
+            .accessibilityLabel("Line width")
 
             Spacer()
 
@@ -414,6 +415,7 @@ struct InlineToolbarView: View {
             }
             .buttonStyle(.plain)
             .disabled(!document.canUndo)
+            .accessibilityLabel("Undo")
 
             Button { onRedo() } label: {
                 Image(systemName: "arrow.uturn.forward")
@@ -421,6 +423,7 @@ struct InlineToolbarView: View {
             }
             .buttonStyle(.plain)
             .disabled(!document.canRedo)
+            .accessibilityLabel("Redo")
 
             Divider()
                 .frame(height: 20)
@@ -432,6 +435,7 @@ struct InlineToolbarView: View {
             }
             .buttonStyle(.plain)
             .help(L10n.annotateSave)
+            .accessibilityLabel(L10n.annotateSave)
 
             // キャンセル
             Button { onCancel() } label: {
@@ -441,6 +445,7 @@ struct InlineToolbarView: View {
             }
             .buttonStyle(.plain)
             .help(L10n.annotateCancel)
+            .accessibilityLabel(L10n.annotateCancel)
 
             // 完了（コピー）
             Button { onDone() } label: {
@@ -451,6 +456,7 @@ struct InlineToolbarView: View {
             }
             .buttonStyle(.plain)
             .help(L10n.annotateDone)
+            .accessibilityLabel(L10n.annotateDone)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

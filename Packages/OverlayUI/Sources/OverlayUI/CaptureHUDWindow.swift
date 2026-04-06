@@ -56,15 +56,13 @@ public final class CaptureHUDWindow {
         panel.titlebarAppearsTransparent = true
 
         // 画面中央に配置
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let panelSize = panel.frame.size
-            let origin = NSPoint(
-                x: screenFrame.midX - panelSize.width / 2,
-                y: screenFrame.midY - panelSize.height / 2
-            )
-            panel.setFrameOrigin(origin)
-        }
+        let screenFrame = ScreenUtilities.activeVisibleFrame
+        let panelSize = panel.frame.size
+        let origin = NSPoint(
+            x: screenFrame.midX - panelSize.width / 2,
+            y: screenFrame.midY - panelSize.height / 2
+        )
+        panel.setFrameOrigin(origin)
 
         // フェードイン
         panel.alphaValue = 0

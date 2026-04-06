@@ -46,7 +46,7 @@ public final class AnnotateWindow {
             width: result.image.width,
             height: result.image.height
         )
-        let screenSize = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1280, height: 800)
+        let screenSize = ScreenUtilities.activeVisibleFrame.size
         let maxWidth = screenSize.width * 0.8
         let maxHeight = screenSize.height * 0.8
 

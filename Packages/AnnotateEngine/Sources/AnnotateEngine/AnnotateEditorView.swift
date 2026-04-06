@@ -1,5 +1,6 @@
 import SwiftUI
 import SharedModels
+import Utilities
 
 /// Annotate エディタの SwiftUI ラッパー
 public struct AnnotateEditorView: View {
@@ -76,7 +77,7 @@ public struct AnnotateEditorView: View {
             }
 
             // 塗りつぶしトグル
-            Toggle("塗りつぶし", isOn: Bindable(document).currentStyle.isFilled)
+            Toggle(L10n.fill, isOn: Bindable(document).currentStyle.isFilled)
                 .toggleStyle(.checkbox)
 
             Spacer()
@@ -89,6 +90,7 @@ public struct AnnotateEditorView: View {
             }
             .disabled(!document.canUndo)
             .keyboardShortcut("z", modifiers: .command)
+            .accessibilityLabel("Undo")
 
             Button {
                 document.redo()
@@ -97,6 +99,7 @@ public struct AnnotateEditorView: View {
             }
             .disabled(!document.canRedo)
             .keyboardShortcut("z", modifiers: [.command, .shift])
+            .accessibilityLabel("Redo")
 
             Divider()
                 .frame(height: 20)
@@ -106,7 +109,7 @@ public struct AnnotateEditorView: View {
                 Image(systemName: "photo.artframe")
             }
             .toggleStyle(.button)
-            .help("背景設定")
+            .help(L10n.backgroundSettings)
 
             Divider()
                 .frame(height: 20)
@@ -115,7 +118,7 @@ public struct AnnotateEditorView: View {
             Button {
                 onDismiss?()
             } label: {
-                Label("完了", systemImage: "checkmark")
+                Label(L10n.done, systemImage: "checkmark")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -142,6 +145,7 @@ public struct AnnotateEditorView: View {
                     in: RoundedRectangle(cornerRadius: 6)
                 )
                 .help(tool.label)
+                .accessibilityLabel(tool.label)
             }
 
             Spacer()
@@ -172,7 +176,7 @@ public struct AnnotateCanvasRepresentable: NSViewRepresentable {
 
     public func makeNSView(context: Context) -> AnnotateCanvasView {
         // ピクセルサイズ → ポイントサイズに変換（Retina 対応）
-        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let scale = ScreenUtilities.activeScaleFactor
         let canvas = AnnotateCanvasView(
             frame: NSRect(
                 origin: .zero,

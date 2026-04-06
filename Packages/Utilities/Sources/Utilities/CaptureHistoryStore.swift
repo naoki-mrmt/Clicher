@@ -62,6 +62,9 @@ public final class CaptureHistoryStore {
     /// 最大履歴数
     public let maxEntries: Int
 
+    /// エラー通知コールバック
+    public var onError: ((String) -> Void)?
+
     public init(maxEntries: Int = 100) {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
@@ -154,12 +157,26 @@ public final class CaptureHistoryStore {
 
     private func loadIndex() {
         guard let data = try? Data(contentsOf: indexURL) else { return }
-        entries = (try? JSONDecoder().decode([CaptureHistoryEntry].self, from: data)) ?? []
+        do {
+            entries = try JSONDecoder().decode([CaptureHistoryEntry].self, from: data)
+        } catch {
+            Logger.app.error("履歴インデックスのデコード失敗: \(error)")
+            // バックアップしてリセット
+            let backupURL = indexURL.deletingPathExtension().appendingPathExtension("backup.json")
+            try? FileManager.default.copyItem(at: indexURL, to: backupURL)
+            entries = []
+            onError?(L10n.error)
+        }
     }
 
     private func saveIndex() {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        try? data.write(to: indexURL)
+        do {
+            let data = try JSONEncoder().encode(entries)
+            try data.write(to: indexURL)
+        } catch {
+            Logger.app.error("履歴インデックスの保存失敗: \(error)")
+            onError?(L10n.saveFailed)
+        }
     }
 
     private func createThumbnail(from image: CGImage, maxWidth: Int) -> CGImage? {

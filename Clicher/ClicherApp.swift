@@ -86,6 +86,11 @@ struct ClicherApp: App {
         // Quick Access Overlay に設定を渡す
         quickAccessOverlay.settings = appSettings
 
+        // 履歴ストアのエラーをトースト表示
+        historyStore.onError = { message in
+            toastOverlay.show(message, style: .error)
+        }
+
         // キャプチャ完了 → Quick Access Overlay を表示 + 履歴に追加
         captureCoordinator.onCaptureComplete = { result in
             quickAccessOverlay.show(result: result)

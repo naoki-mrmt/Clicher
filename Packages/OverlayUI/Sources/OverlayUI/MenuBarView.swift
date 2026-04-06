@@ -27,7 +27,7 @@ public struct MenuBarView: View {
     public var body: some View {
         Group {
             // キャプチャセクション
-            Section("キャプチャ") {
+            Section(L10n.capture) {
                 ForEach(CaptureMode.availableModes) { mode in
                     Button {
                         onCapture(mode)
@@ -49,13 +49,13 @@ public struct MenuBarView: View {
                 Button {
                     permissionManager.openScreenRecordingSettings()
                 } label: {
-                    Label("Screen Recording", systemImage: srIcon)
+                    Label(L10n.screenRecordingLabel, systemImage: srIcon)
                 }
 
                 Button {
                     permissionManager.openAccessibilitySettings()
                 } label: {
-                    Label("Accessibility", systemImage: axIcon)
+                    Label(L10n.accessibilityLabel, systemImage: axIcon)
                 }
             }
 

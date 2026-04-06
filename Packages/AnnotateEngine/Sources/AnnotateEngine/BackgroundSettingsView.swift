@@ -18,22 +18,28 @@ public struct BackgroundSettingsView: View {
         _isEnabled = isEnabled
     }
 
-    enum BackgroundType: String, CaseIterable {
-        case solid = "単色"
-        case gradient = "グラデーション"
+    enum BackgroundType: CaseIterable {
+        case solid, gradient
+
+        var label: String {
+            switch self {
+            case .solid: L10n.bgTypeSolid
+            case .gradient: L10n.bgTypeGradient
+            }
+        }
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 有効/無効トグル
-            Toggle("背景を追加", isOn: $isEnabled)
+            Toggle(L10n.addBackground, isOn: $isEnabled)
                 .toggleStyle(.switch)
 
             if isEnabled {
                 // 背景タイプ
-                Picker("タイプ", selection: $bgType) {
+                Picker(L10n.bgType, selection: $bgType) {
                     ForEach(BackgroundType.allCases, id: \.self) { type in
-                        Text(type.rawValue).tag(type)
+                        Text(type.label).tag(type)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -42,15 +48,15 @@ public struct BackgroundSettingsView: View {
                 // 色設定
                 switch bgType {
                 case .solid:
-                    ColorPicker("背景色", selection: $solidColor)
+                    ColorPicker(L10n.bgColor, selection: $solidColor)
                         .onChange(of: solidColor) { _, _ in updateConfig() }
                 case .gradient:
-                    ColorPicker("開始色", selection: $gradientStart)
+                    ColorPicker(L10n.gradientStartColor, selection: $gradientStart)
                         .onChange(of: gradientStart) { _, _ in updateConfig() }
-                    ColorPicker("終了色", selection: $gradientEnd)
+                    ColorPicker(L10n.gradientEndColor, selection: $gradientEnd)
                         .onChange(of: gradientEnd) { _, _ in updateConfig() }
                     HStack {
-                        Text("角度")
+                        Text(L10n.angle)
                         Slider(value: $gradientAngle, in: 0...360)
                             .onChange(of: gradientAngle) { _, _ in updateConfig() }
                         Text("\(Int(gradientAngle))°")
@@ -63,7 +69,7 @@ public struct BackgroundSettingsView: View {
 
                 // パディング
                 HStack {
-                    Text("余白")
+                    Text(L10n.padding)
                     Slider(value: $config.padding, in: 0...100)
                     Text("\(Int(config.padding))")
                         .monospacedDigit()
@@ -72,7 +78,7 @@ public struct BackgroundSettingsView: View {
 
                 // 角丸
                 HStack {
-                    Text("角丸")
+                    Text(L10n.cornerRadius)
                     Slider(value: $config.cornerRadius, in: 0...40)
                     Text("\(Int(config.cornerRadius))")
                         .monospacedDigit()
@@ -81,7 +87,7 @@ public struct BackgroundSettingsView: View {
 
                 // シャドウ
                 HStack {
-                    Text("影")
+                    Text(L10n.shadow)
                     Slider(value: $config.shadowRadius, in: 0...30)
                     Text("\(Int(config.shadowRadius))")
                         .monospacedDigit()
@@ -91,7 +97,7 @@ public struct BackgroundSettingsView: View {
                 Divider()
 
                 // SNS プリセット
-                Text("SNS プリセット")
+                Text(L10n.snsPresets)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ForEach(SNSSizePreset.allCases) { preset in
@@ -112,7 +118,7 @@ public struct BackgroundSettingsView: View {
                     .buttonStyle(.plain)
                 }
 
-                Button("サイズリセット") {
+                Button(L10n.resetSize) {
                     selectedPreset = nil
                     config.targetSize = nil
                 }

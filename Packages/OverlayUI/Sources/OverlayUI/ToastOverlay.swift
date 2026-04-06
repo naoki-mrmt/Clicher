@@ -57,14 +57,12 @@ public final class ToastOverlay {
         panel.titlebarAppearsTransparent = true
 
         // 画面上部中央に配置
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let origin = NSPoint(
-                x: screenFrame.midX - hostingView.fittingSize.width / 2,
-                y: screenFrame.maxY - hostingView.fittingSize.height - 60
-            )
-            panel.setFrameOrigin(origin)
-        }
+        let screenFrame = ScreenUtilities.activeVisibleFrame
+        let origin = NSPoint(
+            x: screenFrame.midX - hostingView.fittingSize.width / 2,
+            y: screenFrame.maxY - hostingView.fittingSize.height - 60
+        )
+        panel.setFrameOrigin(origin)
 
         // フェードイン
         panel.alphaValue = 0

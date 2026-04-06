@@ -34,16 +34,7 @@ private final class AreaSelectionWindow: NSWindow {
     init(completion: @escaping (CGRect?) -> Void) {
         self.completionHandler = completion
 
-        guard let screen = NSScreen.main else {
-            completion(nil)
-            super.init(
-                contentRect: .zero,
-                styleMask: .borderless,
-                backing: .buffered,
-                defer: false
-            )
-            return
-        }
+        let screen = ScreenUtilities.activeScreen
 
         super.init(
             contentRect: screen.frame,

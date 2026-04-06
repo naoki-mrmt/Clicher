@@ -36,11 +36,11 @@ public struct BrandPresetSettingsView: View {
             }
         }
         .onAppear { presets = store.loadAll() }
-        .alert("エラー", isPresented: Binding(
+        .alert(L10n.error, isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("OK") { errorMessage = nil }
+            Button(L10n.ok) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
@@ -141,7 +141,7 @@ public struct BrandPresetSettingsView: View {
                     Image(systemName: "square.and.arrow.down")
                 }
                 .buttonStyle(.plain)
-                .help("インポート")
+                .help(L10n.importAction)
             }
             .padding(6)
         }
@@ -151,27 +151,27 @@ public struct BrandPresetSettingsView: View {
 
     private func presetDetail(_ preset: BrandPreset) -> some View {
         Form {
-            Section("基本情報") {
-                TextField("名前", text: binding(for: preset, keyPath: \.name))
+            Section(L10n.basicInfo) {
+                TextField(L10n.presetName, text: binding(for: preset, keyPath: \.name))
 
-                Toggle("デフォルトプリセット", isOn: binding(for: preset, keyPath: \.isDefault))
+                Toggle(L10n.defaultPreset, isOn: binding(for: preset, keyPath: \.isDefault))
             }
 
-            Section("カラー") {
-                colorPickerRow("プライマリ", preset: preset, keyPath: \.primaryColor)
-                colorPickerRow("セカンダリ", preset: preset, keyPath: \.secondaryColor)
-                colorPickerRow("アクセント", preset: preset, keyPath: \.accentColor)
+            Section(L10n.colors) {
+                colorPickerRow(L10n.primaryColor, preset: preset, keyPath: \.primaryColor)
+                colorPickerRow(L10n.secondaryColor, preset: preset, keyPath: \.secondaryColor)
+                colorPickerRow(L10n.accentColor, preset: preset, keyPath: \.accentColor)
             }
 
-            Section("ロゴ") {
-                Picker("位置", selection: binding(for: preset, keyPath: \.logoPosition)) {
+            Section(L10n.logo) {
+                Picker(L10n.position, selection: binding(for: preset, keyPath: \.logoPosition)) {
                     ForEach(LogoPosition.allCases) { pos in
                         Text(pos.label).tag(pos)
                     }
                 }
 
                 HStack {
-                    Text("不透明度")
+                    Text(L10n.opacity)
                     Slider(value: binding(for: preset, keyPath: \.logoOpacity), in: 0.1...1.0)
                     Text("\(Int(preset.logoOpacity * 100))%")
                         .monospacedDigit()
@@ -182,14 +182,14 @@ public struct BrandPresetSettingsView: View {
             Section {
                 HStack {
                     // エクスポート
-                    Button("エクスポート") {
+                    Button(L10n.exportAction) {
                         exportPreset(preset)
                     }
 
                     Spacer()
 
                     // 保存
-                    Button("保存") {
+                    Button(L10n.save) {
                         savePreset(preset)
                     }
                     .buttonStyle(.borderedProminent)
@@ -222,13 +222,13 @@ public struct BrandPresetSettingsView: View {
     // MARK: - Actions
 
     private func addPreset() {
-        let preset = BrandPreset(name: "新規プリセット \(presets.count + 1)")
+        let preset = BrandPreset(name: L10n.newPresetName(presets.count + 1))
         do {
             try store.save(preset)
             presets = store.loadAll()
             selectedPreset = preset
         } catch {
-            errorMessage = "プリセットの作成に失敗しました: \(error.localizedDescription)"
+            errorMessage = L10n.presetCreateFailed(error.localizedDescription)
         }
     }
 
@@ -238,7 +238,7 @@ public struct BrandPresetSettingsView: View {
             presets = store.loadAll()
             selectedPreset = nil
         } catch {
-            errorMessage = "プリセットの削除に失敗しました: \(error.localizedDescription)"
+            errorMessage = L10n.presetDeleteFailed(error.localizedDescription)
         }
     }
 
@@ -247,7 +247,7 @@ public struct BrandPresetSettingsView: View {
             try store.save(preset)
             presets = store.loadAll()
         } catch {
-            errorMessage = "プリセットの保存に失敗しました: \(error.localizedDescription)"
+            errorMessage = L10n.presetSaveFailed(error.localizedDescription)
         }
     }
 
@@ -264,7 +264,7 @@ public struct BrandPresetSettingsView: View {
                     presets = store.loadAll()
                     selectedPreset = imported
                 } catch {
-                    errorMessage = "インポートに失敗しました: \(error.localizedDescription)"
+                    errorMessage = L10n.importFailed(error.localizedDescription)
                 }
             }
         }
@@ -281,7 +281,7 @@ public struct BrandPresetSettingsView: View {
                 do {
                     try store.exportToClipreset(preset, to: url)
                 } catch {
-                    errorMessage = "エクスポートに失敗しました: \(error.localizedDescription)"
+                    errorMessage = L10n.exportFailed(error.localizedDescription)
                 }
             }
         }

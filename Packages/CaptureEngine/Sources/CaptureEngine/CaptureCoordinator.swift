@@ -390,7 +390,7 @@ public final class CaptureCoordinator {
         var sckRect: CGRect?
 
         if let macRect = areaRect {
-            let screenHeight = NSScreen.main?.frame.height ?? 900
+            let screenHeight = ScreenUtilities.activeScreenFrame.height
             sckRect = CGRect(
                 x: macRect.origin.x,
                 y: screenHeight - macRect.origin.y - macRect.height,

@@ -149,4 +149,90 @@ public enum L10n {
     // MARK: - Window Capture
 
     public static var removeShadow: String { localized(ja: "影を除去", en: "Remove Shadow") }
+
+    // MARK: - Permission Labels
+
+    public static var screenRecordingLabel: String { localized(ja: "画面収録", en: "Screen Recording") }
+    public static var accessibilityLabel: String { localized(ja: "アクセシビリティ", en: "Accessibility") }
+
+    // MARK: - Settings (additional)
+
+    public static var quickAccessOverlay: String { localized(ja: "Quick Access Overlay", en: "Quick Access Overlay") }
+
+    // MARK: - Brand Presets (detail)
+
+    public static var basicInfo: String { localized(ja: "基本情報", en: "Basic Info") }
+    public static var presetName: String { localized(ja: "名前", en: "Name") }
+    public static var defaultPreset: String { localized(ja: "デフォルトプリセット", en: "Default Preset") }
+    public static var colors: String { localized(ja: "カラー", en: "Colors") }
+    public static var primaryColor: String { localized(ja: "プライマリ", en: "Primary") }
+    public static var secondaryColor: String { localized(ja: "セカンダリ", en: "Secondary") }
+    public static var accentColor: String { localized(ja: "アクセント", en: "Accent") }
+    public static var logo: String { localized(ja: "ロゴ", en: "Logo") }
+    public static var position: String { localized(ja: "位置", en: "Position") }
+    public static var exportAction: String { localized(ja: "エクスポート", en: "Export") }
+    public static var importAction: String { localized(ja: "インポート", en: "Import") }
+    public static func newPresetName(_ n: Int) -> String {
+        localized(ja: "新規プリセット \(n)", en: "New Preset \(n)")
+    }
+    public static func presetCreateFailed(_ detail: String) -> String {
+        localized(ja: "プリセットの作成に失敗しました: \(detail)", en: "Failed to create preset: \(detail)")
+    }
+    public static func presetDeleteFailed(_ detail: String) -> String {
+        localized(ja: "プリセットの削除に失敗しました: \(detail)", en: "Failed to delete preset: \(detail)")
+    }
+    public static func presetSaveFailed(_ detail: String) -> String {
+        localized(ja: "プリセットの保存に失敗しました: \(detail)", en: "Failed to save preset: \(detail)")
+    }
+    public static func importFailed(_ detail: String) -> String {
+        localized(ja: "インポートに失敗しました: \(detail)", en: "Import failed: \(detail)")
+    }
+    public static func exportFailed(_ detail: String) -> String {
+        localized(ja: "エクスポートに失敗しました: \(detail)", en: "Export failed: \(detail)")
+    }
+
+    // MARK: - Video Editor
+
+    public static var videoEditor: String { localized(ja: "動画エディタ", en: "Video Editor") }
+    public static var trim: String { localized(ja: "トリム", en: "Trim") }
+    public static var trimStart: String { localized(ja: "開始", en: "Start") }
+    public static var trimEnd: String { localized(ja: "終了", en: "End") }
+    public static func selectedRange(_ time: String) -> String {
+        localized(ja: "選択範囲: \(time)", en: "Selection: \(time)")
+    }
+    public static var quality: String { localized(ja: "品質", en: "Quality") }
+    public static var qualityHigh: String { localized(ja: "高画質", en: "High") }
+    public static var qualityMedium: String { localized(ja: "標準", en: "Medium") }
+    public static var qualityLow: String { localized(ja: "低画質", en: "Low") }
+    public static var hasAudio: String { localized(ja: "音声あり", en: "Has Audio") }
+    public static var noAudio: String { localized(ja: "音声なし", en: "No Audio") }
+    public static var loading: String { localized(ja: "読み込み中...", en: "Loading...") }
+    public static var convertToGIF: String { localized(ja: "GIF に変換", en: "Convert to GIF") }
+
+    // MARK: - Annotate Editor
+
+    public static var fill: String { localized(ja: "塗りつぶし", en: "Fill") }
+    public static var backgroundSettings: String { localized(ja: "背景設定", en: "Background") }
+    public static var textPlaceholder: String { localized(ja: "テキストを入力", en: "Enter text") }
+
+    // MARK: - Background Settings
+
+    public static var addBackground: String { localized(ja: "背景を追加", en: "Add Background") }
+    public static var bgTypeSolid: String { localized(ja: "単色", en: "Solid") }
+    public static var bgTypeGradient: String { localized(ja: "グラデーション", en: "Gradient") }
+    public static var bgType: String { localized(ja: "タイプ", en: "Type") }
+    public static var bgColor: String { localized(ja: "背景色", en: "Background Color") }
+    public static var gradientStartColor: String { localized(ja: "開始色", en: "Start Color") }
+    public static var gradientEndColor: String { localized(ja: "終了色", en: "End Color") }
+    public static var angle: String { localized(ja: "角度", en: "Angle") }
+    public static var padding: String { localized(ja: "余白", en: "Padding") }
+    public static var cornerRadius: String { localized(ja: "角丸", en: "Corner Radius") }
+    public static var shadow: String { localized(ja: "影", en: "Shadow") }
+    public static var snsPresets: String { localized(ja: "SNS プリセット", en: "SNS Presets") }
+    public static var resetSize: String { localized(ja: "サイズリセット", en: "Reset Size") }
+
+    // MARK: - HUD
+
+    public static var crosshair: String { localized(ja: "クロスヘア", en: "Crosshair") }
+    public static var loupe: String { localized(ja: "ルーペ", en: "Loupe") }
 }

@@ -65,7 +65,7 @@ public final class ScreenRecordingSession {
         // AVAssetWriter セットアップ
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
 
-        let scaleFactor = NSScreen.main?.backingScaleFactor ?? 2.0
+        let scaleFactor = ScreenUtilities.activeScaleFactor
         let width = Int(CGFloat(targetDisplay.width) * scaleFactor)
         let height = Int(CGFloat(targetDisplay.height) * scaleFactor)
 

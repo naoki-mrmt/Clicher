@@ -61,6 +61,7 @@ public struct CaptureHUDView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(L10n.cancel)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -151,7 +152,7 @@ public struct CaptureHUDView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "plus.viewfinder")
                         .font(.caption)
-                    Text("クロスヘア")
+                    Text(L10n.crosshair)
                         .font(.caption)
                 }
             }
@@ -162,7 +163,7 @@ public struct CaptureHUDView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
                         .font(.caption)
-                    Text("ルーペ")
+                    Text(L10n.loupe)
                         .font(.caption)
                 }
             }

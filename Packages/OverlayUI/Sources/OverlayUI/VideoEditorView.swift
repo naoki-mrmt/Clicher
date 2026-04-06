@@ -24,11 +24,17 @@ public struct VideoEditorView: View {
     }
 
     enum QualityOption: String, CaseIterable {
-        case high = "高画質"
-        case medium = "標準"
-        case low = "低画質"
-        case hd720 = "720p"
-        case hd1080 = "1080p"
+        case high, medium, low, hd720, hd1080
+
+        var label: String {
+            switch self {
+            case .high: L10n.qualityHigh
+            case .medium: L10n.qualityMedium
+            case .low: L10n.qualityLow
+            case .hd720: "720p"
+            case .hd1080: "1080p"
+            }
+        }
 
         var videoQuality: VideoQuality {
             switch self {
@@ -45,7 +51,7 @@ public struct VideoEditorView: View {
         VStack(spacing: 16) {
             // ヘッダー
             HStack {
-                Text("動画エディタ")
+                Text(L10n.videoEditor)
                     .font(.headline)
                 Spacer()
                 if let info {
@@ -58,12 +64,12 @@ public struct VideoEditorView: View {
             if let info {
                 // トリム設定
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("トリム")
+                    Text(L10n.trim)
                         .font(.subheadline)
                         .fontWeight(.medium)
 
                     HStack {
-                        Text("開始")
+                        Text(L10n.trimStart)
                             .font(.caption)
                         Slider(value: $trimStart, in: 0...info.duration)
                         Text(formatTime(trimStart))
@@ -73,7 +79,7 @@ public struct VideoEditorView: View {
                     }
 
                     HStack {
-                        Text("終了")
+                        Text(L10n.trimEnd)
                             .font(.caption)
                         Slider(value: $trimEnd, in: 0...info.duration)
                         Text(formatTime(trimEnd))
@@ -82,7 +88,7 @@ public struct VideoEditorView: View {
                             .frame(width: 50)
                     }
 
-                    Text("選択範囲: \(formatTime(max(0, trimEnd - trimStart)))")
+                    Text(L10n.selectedRange(formatTime(max(0, trimEnd - trimStart))))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -90,9 +96,9 @@ public struct VideoEditorView: View {
                 Divider()
 
                 // 品質設定
-                Picker("品質", selection: $selectedQuality) {
+                Picker(L10n.quality, selection: $selectedQuality) {
                     ForEach(QualityOption.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
+                        Text(option.label).tag(option)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -101,27 +107,27 @@ public struct VideoEditorView: View {
                 HStack(spacing: 16) {
                     Label("\(Int(info.size.width))×\(Int(info.size.height))", systemImage: "rectangle")
                     Label("\(Int(info.fps))fps", systemImage: "film")
-                    Label(info.hasAudio ? "音声あり" : "音声なし", systemImage: info.hasAudio ? "speaker.wave.2" : "speaker.slash")
+                    Label(info.hasAudio ? L10n.hasAudio : L10n.noAudio, systemImage: info.hasAudio ? "speaker.wave.2" : "speaker.slash")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             } else {
-                ProgressView("読み込み中...")
+                ProgressView(L10n.loading)
             }
 
             Spacer()
 
             // アクション
             HStack {
-                Button("キャンセル") { onDismiss?() }
+                Button(L10n.cancel) { onDismiss?() }
                 Spacer()
 
-                Button("GIF に変換") {
+                Button(L10n.convertToGIF) {
                     exportAsGIF()
                 }
                 .disabled(isExporting)
 
-                Button("エクスポート") {
+                Button(L10n.exportAction) {
                     exportTrimmed()
                 }
                 .buttonStyle(.borderedProminent)

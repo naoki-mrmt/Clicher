@@ -213,7 +213,7 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
         field.delegate = self
         field.target = self
         field.action = #selector(textFieldDidReturn(_:))
-        field.placeholderString = "テキストを入力"
+        field.placeholderString = L10n.textPlaceholder
 
         addSubview(field)
         window?.makeFirstResponder(field)

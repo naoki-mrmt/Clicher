@@ -199,6 +199,7 @@ struct FloatingScreenshotView: View {
                 onOpacityChange(opacity)
             }
             .frame(width: 80)
+            .accessibilityLabel(L10n.opacity)
 
             Divider().frame(height: 12)
 
@@ -208,6 +209,7 @@ struct FloatingScreenshotView: View {
                     .font(.caption2)
             }
             .toggleStyle(.checkbox)
+            .accessibilityLabel(L10n.clickThrough)
             .onChange(of: isClickThrough) { _, newValue in
                 onClickThroughToggle(newValue)
             }
@@ -220,6 +222,7 @@ struct FloatingScreenshotView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(L10n.cancel)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)

@@ -79,6 +79,9 @@ public final class AnnotateDocument {
     public func undo() {
         guard let previousState = undoStack.popLast() else { return }
         redoStack.append(items.map { $0.copy() })
+        if redoStack.count > 50 {
+            redoStack.removeFirst()
+        }
         items = previousState
         onItemsChanged?()
         Logger.app.debug("Undo 実行 (残りスタック: \(self.undoStack.count))")

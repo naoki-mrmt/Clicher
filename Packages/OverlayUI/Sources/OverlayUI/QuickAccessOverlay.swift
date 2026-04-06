@@ -122,7 +122,7 @@ public final class QuickAccessOverlay {
     // MARK: - Private
 
     private func positionPanel(_ panel: NSPanel) {
-        guard let screen = NSScreen.main else { return }
+        let screen = ScreenUtilities.activeScreen
         let screenFrame = screen.visibleFrame
         let panelSize = panel.frame.size
         let padding: CGFloat = 16

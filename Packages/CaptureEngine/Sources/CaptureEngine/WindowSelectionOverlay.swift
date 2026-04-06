@@ -51,7 +51,7 @@ private final class WindowSelectionWindow: NSWindow {
         self.validWindows = windows
         self.completionHandler = completion
 
-        let screenFrame = NSScreen.main?.frame ?? .zero
+        let screenFrame = ScreenUtilities.activeScreenFrame
 
         super.init(
             contentRect: screenFrame,
@@ -102,7 +102,7 @@ private final class WindowSelectionWindow: NSWindow {
 
     /// 指定座標にあるウィンドウを検索
     private func windowAtPoint(_ point: NSPoint) -> SCWindow? {
-        guard let screenHeight = NSScreen.main?.frame.height else { return nil }
+        let screenHeight = ScreenUtilities.activeScreenFrame.height
 
         // macOS座標系(左下原点) → ScreenCaptureKit座標系(左上原点)
         let flippedY = screenHeight - point.y
@@ -115,7 +115,7 @@ private final class WindowSelectionWindow: NSWindow {
 
     /// ホバー中のウィンドウをハイライト
     private func updateHighlight(at point: NSPoint) {
-        guard let screenHeight = NSScreen.main?.frame.height else { return }
+        let screenHeight = ScreenUtilities.activeScreenFrame.height
 
         if let window = windowAtPoint(point) {
             let frame = window.frame

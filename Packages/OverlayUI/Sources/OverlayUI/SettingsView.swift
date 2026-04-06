@@ -95,7 +95,7 @@ public struct SettingsView: View {
 
             Divider()
 
-            Section("Quick Access Overlay") {
+            Section(L10n.quickAccessOverlay) {
                 Picker(L10n.overlayPosition, selection: Bindable(settings).overlayPosition) {
                     ForEach(OverlayPosition.allCases) { position in
                         Text(position.label).tag(position)
@@ -124,14 +124,14 @@ public struct SettingsView: View {
     private var permissionTab: some View {
         Form {
             permissionRow(
-                title: "Screen Recording",
+                title: L10n.screenRecordingLabel,
                 description: L10n.screenRecordingDesc,
                 isGranted: permissionManager.hasScreenRecordingPermission,
                 action: permissionManager.openScreenRecordingSettings
             )
 
             permissionRow(
-                title: "Accessibility",
+                title: L10n.accessibilityLabel,
                 description: L10n.accessibilityDesc,
                 isGranted: permissionManager.hasAccessibilityPermission,
                 action: permissionManager.openAccessibilitySettings
