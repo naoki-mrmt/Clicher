@@ -7,10 +7,13 @@ import SharedModels
 public enum WatermarkRenderer {
     /// 画像にブランドプリセットのロゴウォーターマークを挿入
     public static func apply(to image: CGImage, preset: BrandPreset) -> CGImage? {
-        guard let logoData = preset.logoImageData,
-              let logoNSImage = NSImage(data: logoData),
+        guard let logoData = preset.logoImageData else {
+            return image // ロゴが未設定
+        }
+        guard let logoNSImage = NSImage(data: logoData),
               let logoCGImage = logoNSImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return image // ロゴがなければ元画像をそのまま返す
+            Logger.app.warning("ウォーターマーク: ロゴ画像の読み込みに失敗しました")
+            return image
         }
 
         let width = image.width

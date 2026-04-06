@@ -74,7 +74,13 @@ public enum ImageExporter {
         panel.nameFieldStringValue = generateFileName(format: format)
         panel.canCreateDirectories = true
 
-        let response = await panel.beginSheetModal(for: NSApp.keyWindow ?? NSWindow())
+        // keyWindow がない場合はモーダルではなく独立パネルとして表示
+        let response: NSApplication.ModalResponse
+        if let keyWindow = NSApp.keyWindow {
+            response = await panel.beginSheetModal(for: keyWindow)
+        } else {
+            response = await panel.begin()
+        }
         guard response == .OK, let url = panel.url else {
             return nil
         }
