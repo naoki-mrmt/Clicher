@@ -183,9 +183,8 @@ public final class CaptureCoordinator {
             // CGWindowListCreateImage は画面上の全ウィンドウをキャプチャするため
             inlineAnnotate?.hideModeTab()
             inlineAnnotate?.hideDim()
-
-            // ウィンドウサーバーに反映させるための短い待機
-            try await Task.sleep(for: .milliseconds(100))
+            // ウィンドウサーバーに orderOut を反映させる最小待機
+            try await Task.sleep(for: .milliseconds(16))
 
             // macOS 座標をそのまま渡す（座標変換は captureArea 内で行う）
             let image = try await captureService.captureArea(macRect: macRect, display: display)
