@@ -24,30 +24,29 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public init() {}
 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
-        // macOS スクリーン座標（左下原点）→ SCK 座標（左上原点）
+        // macOS スクリーン座標（左下原点）→ CG ディスプレイ座標（左上原点）
         let displayBounds = CGDisplayBounds(CGMainDisplayID())
-        let sckRect = CGRect(
+        let cgRect = CGRect(
             x: macRect.origin.x,
             y: displayBounds.height - macRect.origin.y - macRect.height,
             width: macRect.width,
             height: macRect.height
         )
 
-        Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) sckRect=\(sckRect.debugDescription)")
+        Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) cgRect=\(cgRect.debugDescription)")
 
-        // SCScreenshotManager + sourceRect でエリアキャプチャ
-        let filter = SCContentFilter(display: display, excludingWindows: [])
-        let config = SCStreamConfiguration()
-        config.sourceRect = sckRect
-        config.width = Int(sckRect.width * ScreenUtilities.activeScaleFactor)
-        config.height = Int(sckRect.height * ScreenUtilities.activeScaleFactor)
-        config.showsCursor = false
-        config.captureResolution = .best
-
-        let image = try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: config
-        )
+        // SCScreenshotManager の sourceRect にバグがあるため CGWindowListCreateImage を使用
+        guard let image = CGWindowListCreateImage(
+            cgRect,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            .bestResolution
+        ) else {
+            Logger.capture.error("エリアキャプチャ失敗: cgRect=\(cgRect.debugDescription)")
+            throw NSError(domain: "CaptureEngine", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "エリアキャプチャに失敗しました"
+            ])
+        }
 
         Logger.capture.info("エリアキャプチャ完了: \(image.width)x\(image.height)")
         return image
