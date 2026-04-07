@@ -69,6 +69,7 @@ private final class AreaSelectionWindow: NSWindow {
 
     private func finishSelection(rect: CGRect?) {
         NSCursor.pop()
+        NSCursor.arrow.set()
         orderOut(nil)
         completionHandler?(rect)
         completionHandler = nil
