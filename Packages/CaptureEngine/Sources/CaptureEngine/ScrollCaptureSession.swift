@@ -33,7 +33,7 @@ public final class ScrollCaptureSession {
         self.captureService = captureService
     }
 
-    /// スクロールキャプチャを開始
+    /// スクロールキャプチャを開始（エリア選択から）
     public func start() async {
         guard !isCapturing else { return }
 
@@ -42,6 +42,13 @@ public final class ScrollCaptureSession {
             Logger.capture.info("スクロールキャプチャ: エリア選択がキャンセルされました")
             return
         }
+
+        await start(with: macRect)
+    }
+
+    /// エリア選択済みの rect でスクロールキャプチャを開始
+    public func start(with macRect: CGRect) async {
+        guard !isCapturing else { return }
 
         isCapturing = true
         frames.removeAll()

@@ -118,6 +118,8 @@ public final class InlineAnnotateOverlay {
     /// 全ウィンドウを閉じる
     public func dismiss() {
         removeKeyMonitor()
+        // カーソルをデフォルトに戻す
+        NSCursor.arrow.set()
         // カラーパレットが開いていれば閉じる
         if NSColorPanel.shared.isVisible {
             NSColorPanel.shared.orderOut(nil)
@@ -585,8 +587,13 @@ struct InlineToolbarView: View {
 // MARK: - Mode Tab Bar View
 
 struct ModeTabBarView: View {
-    let selectedMode: CaptureMode
+    @State private var selectedMode: CaptureMode
     let onModeSelected: (CaptureMode) -> Void
+
+    init(selectedMode: CaptureMode, onModeSelected: @escaping (CaptureMode) -> Void) {
+        self._selectedMode = State(initialValue: selectedMode)
+        self.onModeSelected = onModeSelected
+    }
 
     private var modes: [(CaptureMode, String)] {
         [
@@ -600,7 +607,10 @@ struct ModeTabBarView: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(modes, id: \.0) { mode, label in
-                Button { onModeSelected(mode) } label: {
+                Button {
+                    selectedMode = mode
+                    onModeSelected(mode)
+                } label: {
                     Text(label)
                         .font(.system(size: 13, weight: mode == selectedMode ? .semibold : .regular))
                         .foregroundStyle(mode == selectedMode ? .primary : .secondary)

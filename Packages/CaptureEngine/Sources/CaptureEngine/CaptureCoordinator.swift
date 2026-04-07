@@ -149,10 +149,10 @@ public final class CaptureCoordinator {
         overlay.onModeChanged = { [weak self] mode in
             guard let self else { return }
             switch mode {
-            case .area, .recording, .ocr:
+            case .area, .recording, .ocr, .scroll:
                 // エリア選択が必要なモード → 状態更新のみ（エリア選択は継続）
                 modeBarSelectedMode = mode
-            case .window, .fullscreen, .scroll:
+            case .window, .fullscreen:
                 // エリア選択不要なモード → overlay を閉じて即実行
                 inlineAnnotate = nil
                 overlay.dismiss()
@@ -203,8 +203,12 @@ public final class CaptureCoordinator {
             overlay.dismiss()
             inlineAnnotate = nil
             await startOCRAfterSelection(macRect: macRect)
+        case .scroll:
+            overlay.dismiss()
+            inlineAnnotate = nil
+            await startScrollAfterSelection(macRect: macRect)
         default:
-            // window/fullscreen/scroll はモードタブ選択時に直接実行されるためここには来ない
+            // window/fullscreen はモードタブ選択時に直接実行されるためここには来ない
             overlay.dismiss()
             inlineAnnotate = nil
             isCapturing = false
@@ -264,6 +268,9 @@ public final class CaptureCoordinator {
 
     /// モードタブ経由でエリア選択済みの場合の OCR 処理
     private func startOCRAfterSelection(macRect: CGRect) async {
+        // オーバーレイ非表示がウィンドウサーバーに反映されるのを待つ
+        try? await Task.sleep(for: .milliseconds(16))
+
         do {
             let content = try await captureService.availableContent()
             guard let display = content.displays.first else {
@@ -322,6 +329,7 @@ public final class CaptureCoordinator {
                     continuation.resume()
                 },
                 onCancel: { [weak self] in
+                    overlay.dismiss()
                     self?.inlineAnnotate = nil
                     self?.isCapturing = false
                     continuation.resume()
@@ -574,6 +582,29 @@ public final class CaptureCoordinator {
         }
         scrollSession = session
         await session.start()
+
+        // 初回フレーム取得後に操作 UI を表示
+        if session.isCapturing {
+            onScrollCaptureStarted?()
+        }
+    }
+
+    /// モードタブ経由でエリア選択済みの場合のスクロールキャプチャ処理
+    private func startScrollAfterSelection(macRect: CGRect) async {
+        // オーバーレイ非表示がウィンドウサーバーに反映されるのを待つ
+        // （初回フレームにモードタブ等が写り込むのを防ぐ）
+        try? await Task.sleep(for: .milliseconds(16))
+
+        let session = ScrollCaptureSession(captureService: captureService)
+        session.onComplete = { [weak self] image in
+            guard let self else { return }
+            let result = CaptureResult(image: image, mode: .scroll)
+            lastResult = result
+            onCaptureComplete?(result)
+            isCapturing = false
+        }
+        scrollSession = session
+        await session.start(with: macRect)
 
         // 初回フレーム取得後に操作 UI を表示
         if session.isCapturing {
