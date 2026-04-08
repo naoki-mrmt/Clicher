@@ -13,7 +13,10 @@ public final class AreaSelectionOverlay {
     public static func selectArea() async -> CGRect? {
         await withCheckedContinuation { continuation in
             Task { @MainActor in
+                var resumed = false
                 let overlay = AreaSelectionWindow { rect in
+                    guard !resumed else { return }
+                    resumed = true
                     activeWindow = nil
                     continuation.resume(returning: rect)
                 }

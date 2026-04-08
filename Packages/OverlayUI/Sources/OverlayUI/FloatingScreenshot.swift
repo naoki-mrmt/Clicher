@@ -63,6 +63,8 @@ public final class FloatingScreenshotManager {
 public final class FloatingScreenshotWindow: Identifiable {
     public let id = UUID()
     private var panel: NSPanel?
+    /// クリックスルー時に操作を受け付ける小さいグリップウィンドウ
+    private var gripPanel: NSPanel?
     private var config: FloatingScreenshotConfig
 
     var onClose: ((UUID) -> Void)?
@@ -92,6 +94,7 @@ public final class FloatingScreenshotWindow: Identifiable {
                 newConfig.isClickThrough = enabled
                 self.config = newConfig
                 self.panel?.ignoresMouseEvents = enabled
+                self.updateGripPanel(clickThrough: enabled)
             },
             onClose: { [weak self] in
                 guard let self else { return }
@@ -132,6 +135,8 @@ public final class FloatingScreenshotWindow: Identifiable {
     }
 
     func close() {
+        gripPanel?.orderOut(nil)
+        gripPanel = nil
         panel?.orderOut(nil)
         panel = nil
     }
@@ -141,6 +146,63 @@ public final class FloatingScreenshotWindow: Identifiable {
         panel?.alphaValue = config.opacity
         panel?.ignoresMouseEvents = config.isClickThrough
         panel?.level = config.isAlwaysOnTop ? .floating : .normal
+        updateGripPanel(clickThrough: config.isClickThrough)
+    }
+
+    /// クリックスルー時にパネル右上に復帰用グリップを表示
+    private func updateGripPanel(clickThrough: Bool) {
+        if clickThrough {
+            showGripPanel()
+        } else {
+            gripPanel?.orderOut(nil)
+            gripPanel = nil
+        }
+    }
+
+    private func showGripPanel() {
+        guard let panel else { return }
+        gripPanel?.orderOut(nil)
+
+        let gripSize = NSSize(width: 28, height: 28)
+        let gripOrigin = NSPoint(
+            x: panel.frame.maxX - gripSize.width - 4,
+            y: panel.frame.maxY - gripSize.height - 4
+        )
+        let grip = NSPanel(
+            contentRect: NSRect(origin: gripOrigin, size: gripSize),
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        grip.level = panel.level + 1
+        grip.isOpaque = false
+        grip.backgroundColor = .clear
+        grip.hasShadow = false
+        grip.ignoresMouseEvents = false
+
+        let button = NSButton(frame: NSRect(origin: .zero, size: gripSize))
+        button.isBordered = false
+        button.image = NSImage(systemSymbolName: "hand.tap.fill", accessibilityDescription: "Disable click-through")
+        button.contentTintColor = .white
+        button.wantsLayer = true
+        button.layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.8).cgColor
+        button.layer?.cornerRadius = gripSize.width / 2
+        button.target = self
+        button.action = #selector(disableClickThrough)
+        grip.contentView = button
+
+        grip.orderFrontRegardless()
+        self.gripPanel = grip
+    }
+
+    @objc private func disableClickThrough() {
+        var newConfig = config
+        newConfig.isClickThrough = false
+        config = newConfig
+        panel?.ignoresMouseEvents = false
+        gripPanel?.orderOut(nil)
+        gripPanel = nil
+        onConfigChange?(id, config)
     }
 }
 

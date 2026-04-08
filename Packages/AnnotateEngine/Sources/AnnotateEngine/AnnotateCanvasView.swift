@@ -187,6 +187,10 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
 
         if activeItem.toolType == .pencil {
             activeItem.points.append(point)
+            // Ramer-Douglas-Peucker でポイント間引き（描画パフォーマンス改善）
+            if activeItem.points.count > 10 {
+                activeItem.points = Self.simplifyPoints(activeItem.points, epsilon: 1.0)
+            }
         } else {
             activeItem.endPoint = point
         }
@@ -199,6 +203,45 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
 
         self.activeItem = nil
         needsDisplay = true
+    }
+
+    // MARK: - Point Simplification (Ramer-Douglas-Peucker)
+
+    private static func simplifyPoints(_ points: [CGPoint], epsilon: CGFloat) -> [CGPoint] {
+        guard points.count > 2 else { return points }
+
+        // 始点→終点の直線からの最大距離を求める
+        let first = points[0]
+        let last = points[points.count - 1]
+        var maxDist: CGFloat = 0
+        var maxIndex = 0
+
+        for i in 1..<(points.count - 1) {
+            let d = perpendicularDistance(points[i], lineStart: first, lineEnd: last)
+            if d > maxDist {
+                maxDist = d
+                maxIndex = i
+            }
+        }
+
+        if maxDist > epsilon {
+            let left = simplifyPoints(Array(points[0...maxIndex]), epsilon: epsilon)
+            let right = simplifyPoints(Array(points[maxIndex...]), epsilon: epsilon)
+            return left.dropLast() + right
+        } else {
+            return [first, last]
+        }
+    }
+
+    private static func perpendicularDistance(_ point: CGPoint, lineStart: CGPoint, lineEnd: CGPoint) -> CGFloat {
+        let dx = lineEnd.x - lineStart.x
+        let dy = lineEnd.y - lineStart.y
+        let lengthSq = dx * dx + dy * dy
+        guard lengthSq > 0 else {
+            return hypot(point.x - lineStart.x, point.y - lineStart.y)
+        }
+        let num = abs(dy * point.x - dx * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+        return num / sqrt(lengthSq)
     }
 
     override public func mouseMoved(with event: NSEvent) {
@@ -236,6 +279,9 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
         field.target = self
         field.action = #selector(textFieldDidReturn(_:))
         field.placeholderString = L10n.textPlaceholder
+        // セルを自動サイズ調整に設定
+        field.cell?.isScrollable = false
+        field.cell?.wraps = false
 
         addSubview(field)
         window?.makeFirstResponder(field)
@@ -248,6 +294,18 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
 
     public func controlTextDidEndEditing(_ obj: Notification) {
         finishTextEditing()
+    }
+
+    public func controlTextDidChange(_ obj: Notification) {
+        guard let field = textField else { return }
+        // テキスト入力に応じてフィールド幅を自動拡張
+        let text = field.stringValue as NSString
+        let attrs: [NSAttributedString.Key: Any] = [.font: field.font ?? NSFont.systemFont(ofSize: 14)]
+        let textWidth = text.size(withAttributes: attrs).width
+        let minWidth: CGFloat = 120
+        let maxWidth = bounds.width - field.frame.origin.x - 8
+        let newWidth = min(max(textWidth + 24, minWidth), maxWidth)
+        field.setFrameSize(NSSize(width: newWidth, height: field.frame.height))
     }
 
     private func finishTextEditing() {

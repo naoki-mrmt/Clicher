@@ -28,7 +28,10 @@ public final class WindowSelectionOverlay {
         }
 
         return await withCheckedContinuation { continuation in
+            var resumed = false
             let overlay = WindowSelectionWindow(windows: validWindows) { window in
+                guard !resumed else { return }
+                resumed = true
                 activeWindow = nil
                 nonisolated(unsafe) let selected = window
                 continuation.resume(returning: selected)
@@ -146,12 +149,15 @@ private final class WindowSelectionWindow: NSWindow {
             hw.hasShadow = false
             hw.ignoresMouseEvents = true
 
-            let view = HighlightView(frame: frame)
+            // contentView はウィンドウローカル座標（origin は .zero）
+            let view = HighlightView(frame: NSRect(origin: .zero, size: frame.size))
             hw.contentView = view
             highlightWindow = hw
         }
 
         highlightWindow?.setFrame(frame, display: true)
+        // ウィンドウリサイズ時に contentView のサイズも更新
+        highlightWindow?.contentView?.frame = NSRect(origin: .zero, size: frame.size)
         highlightWindow?.orderFrontRegardless()
     }
 

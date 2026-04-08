@@ -178,24 +178,45 @@ public enum AnnotateRenderer {
 
         let blockSize: CGFloat = 12
 
+        // キャッシュキーを生成（位置とサイズが同じならキャッシュ再利用）
+        let cacheKey = "\(Int(rect.origin.x)),\(Int(rect.origin.y)),\(Int(rect.width)),\(Int(rect.height))"
+
+        // キャッシュがあればそのまま描画
+        if let cached = item.pixelateCache, item.pixelateCacheKey == cacheKey {
+            ctx.draw(cached, in: rect)
+            return
+        }
+
         guard let originalImage else {
-            // 元画像がない場合はグレーブロックでフォールバック
             drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
             return
         }
 
-        // 元画像のピクセルデータを取得してブロック平均色でモザイク描画
+        // モザイク画像をオフスクリーンで生成
+        let pixelateImage = generatePixelateImage(
+            rect: rect, blockSize: blockSize, size: size, originalImage: originalImage
+        )
+
+        if let pixelateImage {
+            // キャッシュに保存
+            item.pixelateCache = pixelateImage
+            item.pixelateCacheKey = cacheKey
+            ctx.draw(pixelateImage, in: rect)
+        } else {
+            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
+        }
+    }
+
+    /// モザイク画像をオフスクリーンで生成
+    private static func generatePixelateImage(
+        rect: CGRect, blockSize: CGFloat, size: CGSize, originalImage: CGImage
+    ) -> CGImage? {
         let imgW = CGFloat(originalImage.width)
         let imgH = CGFloat(originalImage.height)
-        guard size.width > 0, size.height > 0 else {
-            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
-            return
-        }
+        guard size.width > 0, size.height > 0 else { return nil }
         let scaleX = imgW / size.width
         let scaleY = imgH / size.height
 
-        // 元画像から選択範囲を切り出し（ピクセル座標に変換）
-        // rect は flipped 座標系（top-left 原点）だが CGImage は bottom-left 原点なので Y を反転
         let flippedY = imgH - (rect.origin.y + rect.height) * scaleY
         let cropRect = CGRect(
             x: max(0, rect.origin.x * scaleX),
@@ -207,55 +228,51 @@ public enum AnnotateRenderer {
         guard let croppedImage = originalImage.cropping(to: cropRect),
               let dataProvider = croppedImage.dataProvider,
               let data = dataProvider.data,
-              let ptr = CFDataGetBytePtr(data) else {
-            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
-            return
-        }
+              let ptr = CFDataGetBytePtr(data) else { return nil }
 
         let bpp = croppedImage.bitsPerPixel / 8
-        guard bpp >= 3 else {
-            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
-            return
-        }
+        guard bpp >= 3 else { return nil }
         let rowBytes = croppedImage.bytesPerRow
         let cropW = croppedImage.width
         let cropH = croppedImage.height
+        guard cropW > 0, cropH > 0 else { return nil }
 
-        // ピクセルフォーマットに応じた RGB チャネルオフセットを決定
         let alphaInfo = croppedImage.alphaInfo
         let rOffset: Int
         let gOffset: Int
         let bOffset: Int
         switch alphaInfo {
         case .premultipliedFirst, .first, .noneSkipFirst:
-            // ARGB 系: [A][R][G][B]
             rOffset = 1; gOffset = 2; bOffset = 3
         default:
-            // RGBA 系 / その他: [R][G][B][A] or [R][G][B]
             rOffset = 0; gOffset = 1; bOffset = 2
         }
 
-        guard cropW > 0, cropH > 0 else {
-            drawPixelateFallback(rect: rect, blockSize: blockSize, in: ctx)
-            return
-        }
+        let w = Int(rect.width)
+        let h = Int(rect.height)
+        guard let offCtx = CGContext(
+            data: nil, width: w, height: h,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+        ) else { return nil }
+
+        // オフスクリーンは左下原点だが、ここではローカル座標で描画
         let blockScaleX = CGFloat(cropW) / rect.width
         let blockScaleY = CGFloat(cropH) / rect.height
 
-        var y = rect.minY
-        while y < rect.maxY {
-            var x = rect.minX
-            while x < rect.maxX {
-                let bw = min(blockSize, rect.maxX - x)
-                let bh = min(blockSize, rect.maxY - y)
+        var y: CGFloat = 0
+        while y < CGFloat(h) {
+            var x: CGFloat = 0
+            while x < CGFloat(w) {
+                let bw = min(blockSize, CGFloat(w) - x)
+                let bh = min(blockSize, CGFloat(h) - y)
 
-                // ピクセル座標でのブロック範囲
-                let px0 = Int((x - rect.minX) * blockScaleX)
-                let py0 = Int((y - rect.minY) * blockScaleY)
-                let px1 = min(Int((x - rect.minX + bw) * blockScaleX), cropW)
-                let py1 = min(Int((y - rect.minY + bh) * blockScaleY), cropH)
+                let px0 = Int(x * blockScaleX)
+                let py0 = Int(y * blockScaleY)
+                let px1 = min(Int((x + bw) * blockScaleX), cropW)
+                let py1 = min(Int((y + bh) * blockScaleY), cropH)
 
-                // ブロック内ピクセルの平均色を計算
                 var totalR = 0, totalG = 0, totalB = 0, count = 0
                 let stepY = max(1, (py1 - py0) / 4)
                 let stepX = max(1, (px1 - px0) / 4)
@@ -278,16 +295,18 @@ public enum AnnotateRenderer {
                         blue: CGFloat(totalB) / CGFloat(count) / 255.0,
                         alpha: 1.0
                     )
-                    ctx.setFillColor(color)
+                    offCtx.setFillColor(color)
                 } else {
-                    ctx.setFillColor(CGColor(gray: 0.5, alpha: 0.8))
+                    offCtx.setFillColor(CGColor(gray: 0.5, alpha: 0.8))
                 }
 
-                ctx.fill(CGRect(x: x, y: y, width: bw, height: bh))
+                offCtx.fill(CGRect(x: x, y: CGFloat(h) - y - bh, width: bw, height: bh))
                 x += blockSize
             }
             y += blockSize
         }
+
+        return offCtx.makeImage()
     }
 
     private static func drawPixelateFallback(rect: CGRect, blockSize: CGFloat, in ctx: CGContext) {

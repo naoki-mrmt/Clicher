@@ -221,7 +221,7 @@ public final class CaptureCoordinator {
     private func captureAreaAfterSelection(macRect: CGRect, overlay: InlineAnnotateOverlay) async {
         do {
             let content = try await captureService.availableContent()
-            guard let display = content.displays.first else {
+            guard let display = findDisplay(for: macRect, in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
                 return
@@ -273,7 +273,7 @@ public final class CaptureCoordinator {
 
         do {
             let content = try await captureService.availableContent()
-            guard let display = content.displays.first else {
+            guard let display = findDisplay(for: macRect, in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
                 return
@@ -393,7 +393,7 @@ public final class CaptureCoordinator {
 
         do {
             let content = try await contentTask
-            guard let display = content.displays.first else {
+            guard let display = findDisplay(for: macRect, in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
                 return
@@ -486,7 +486,7 @@ public final class CaptureCoordinator {
 
         do {
             let content = try await captureService.availableContent()
-            guard let display = content.displays.first else {
+            guard let display = findActiveDisplay(in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 return
             }
@@ -522,7 +522,7 @@ public final class CaptureCoordinator {
 
         do {
             let content = try await captureService.availableContent()
-            guard let display = content.displays.first else {
+            guard let display = findDisplay(for: macRect, in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 return
             }
@@ -659,5 +659,24 @@ public final class CaptureCoordinator {
         await recordingSession?.stop()
         // onRecordingStopped は session.onComplete 経由で発火済み
         recordingSession = nil
+    }
+
+    // MARK: - Display Utilities
+
+    /// macOS 座標の矩形を含むディスプレイを返す（マルチディスプレイ対応）
+    /// nonisolated(unsafe) でラップ済み（SCDisplay は non-Sendable のため）
+    private nonisolated func findDisplay(for macRect: CGRect, in content: SCShareableContent) -> SCDisplay? {
+        nonisolated(unsafe) let displays = content.displays
+        let targetDisplayID = ScreenUtilities.displayID(for: ScreenUtilities.screen(containing: macRect))
+        return displays.first { $0.displayID == targetDisplayID }
+            ?? displays.first
+    }
+
+    /// マウスカーソル位置のディスプレイを返す
+    private nonisolated func findActiveDisplay(in content: SCShareableContent) -> SCDisplay? {
+        nonisolated(unsafe) let displays = content.displays
+        let targetDisplayID = ScreenUtilities.displayID(for: ScreenUtilities.activeScreen)
+        return displays.first { $0.displayID == targetDisplayID }
+            ?? displays.first
     }
 }

@@ -25,4 +25,17 @@ public enum ScreenUtilities {
     public static var activeScaleFactor: CGFloat {
         activeScreen.backingScaleFactor
     }
+
+    /// 指定された macOS 座標の矩形を含むスクリーンを返す
+    public static func screen(containing rect: CGRect) -> NSScreen {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let screen = NSScreen.screens.first { $0.frame.contains(center) }
+        return screen ?? activeScreen
+    }
+
+    /// NSScreen から対応する CGDirectDisplayID を取得
+    public static func displayID(for screen: NSScreen) -> CGDirectDisplayID {
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        return screen.deviceDescription[key] as? CGDirectDisplayID ?? CGMainDisplayID()
+    }
 }

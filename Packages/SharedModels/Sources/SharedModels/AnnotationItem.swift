@@ -12,6 +12,11 @@ public final class AnnotationItem: Identifiable {
     public var text: String
     public var counterNumber: Int
 
+    /// モザイクキャッシュ画像（描画パフォーマンス最適化用）
+    public var pixelateCache: CGImage?
+    /// モザイクキャッシュのキー（boundingRect のハッシュ）
+    public var pixelateCacheKey: String?
+
     public init(
         toolType: AnnotationToolType,
         style: AnnotationStyle = AnnotationStyle(),

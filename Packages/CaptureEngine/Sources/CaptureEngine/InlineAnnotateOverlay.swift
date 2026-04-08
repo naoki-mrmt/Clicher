@@ -18,6 +18,9 @@ public final class InlineAnnotateOverlay {
     nonisolated(unsafe) private var localKeyMonitor: Any?
     nonisolated(unsafe) private var globalKeyMonitor: Any?
 
+    /// モードタブバーの選択モード（Binding 用）
+    private var _selectedMode: CaptureMode = .area
+
     /// 完了時のコールバック（編集済み画像）
     public var onComplete: ((CGImage) -> Void)?
 
@@ -222,9 +225,15 @@ public final class InlineAnnotateOverlay {
     // MARK: - Mode Tab Bar
 
     private func showModeTabBar(currentMode: CaptureMode) {
+        _selectedMode = currentMode
+        let binding = Binding<CaptureMode>(
+            get: { [weak self] in self?._selectedMode ?? .area },
+            set: { [weak self] in self?._selectedMode = $0 }
+        )
         let tabView = ModeTabBarView(
-            selectedMode: currentMode,
+            selectedMode: binding,
             onModeSelected: { [weak self] mode in
+                self?._selectedMode = mode
                 self?.onModeChanged?(mode)
             }
         )
@@ -587,11 +596,11 @@ struct InlineToolbarView: View {
 // MARK: - Mode Tab Bar View
 
 struct ModeTabBarView: View {
-    @State private var selectedMode: CaptureMode
+    @Binding var selectedMode: CaptureMode
     let onModeSelected: (CaptureMode) -> Void
 
-    init(selectedMode: CaptureMode, onModeSelected: @escaping (CaptureMode) -> Void) {
-        self._selectedMode = State(initialValue: selectedMode)
+    init(selectedMode: Binding<CaptureMode>, onModeSelected: @escaping (CaptureMode) -> Void) {
+        self._selectedMode = selectedMode
         self.onModeSelected = onModeSelected
     }
 

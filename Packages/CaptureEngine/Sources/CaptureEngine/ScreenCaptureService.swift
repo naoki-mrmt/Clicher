@@ -25,7 +25,10 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
         // macOS スクリーン座標（左下原点）→ CG ディスプレイ座標（左上原点）
-        let displayBounds = CGDisplayBounds(CGMainDisplayID())
+        // マルチディスプレイ対応: macRect を含むスクリーンの displayID を使用
+        let screen = ScreenUtilities.screen(containing: macRect)
+        let displayID = ScreenUtilities.displayID(for: screen)
+        let displayBounds = CGDisplayBounds(displayID)
         let cgRect = CGRect(
             x: macRect.origin.x,
             y: displayBounds.height - macRect.origin.y - macRect.height,
@@ -56,8 +59,10 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
 
-        config.width = Int(window.frame.width)
-        config.height = Int(window.frame.height)
+        // Retina 対応: ポイントサイズにスケールファクターを乗算
+        let scaleFactor = ScreenUtilities.activeScaleFactor
+        config.width = Int(window.frame.width * scaleFactor)
+        config.height = Int(window.frame.height * scaleFactor)
         config.showsCursor = false
         config.captureResolution = .best
 
@@ -81,8 +86,8 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
 
-        // Retina: CGMainDisplayID のネイティブピクセルモードで取得（MainActor 不要）
-        let displayID = CGMainDisplayID()
+        // Retina: 対象ディスプレイのネイティブピクセルモードで取得
+        let displayID = display.displayID
         let pixelWidth = CGDisplayPixelsWide(displayID)
         let pixelHeight = CGDisplayPixelsHigh(displayID)
         config.width = pixelWidth
