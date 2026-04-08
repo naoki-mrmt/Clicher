@@ -35,7 +35,7 @@ public final class QuickAccessOverlay {
                 self?.dismiss()
             },
             onCopy: { [weak self] in
-                ImageExporter.copyToClipboard(result.image)
+                self?.onCopy?(result)
                 self?.dismiss()
             },
             onEdit: { [weak self] in

@@ -619,10 +619,31 @@ public final class CaptureCoordinator {
 
     /// スクロールキャプチャを完了
     public func finishScrollCapture() {
-        onProcessingStart?(L10n.processingStitch)
-        _ = scrollSession?.finish()
+        guard let session = scrollSession else { return }
+        let frames = session.frames
+        let overlap = 20
         scrollSession = nil
-        onProcessingEnd?()
+        session.cancel()
+
+        guard !frames.isEmpty else {
+            isCapturing = false
+            return
+        }
+
+        onProcessingStart?(L10n.processingStitch)
+        Task.detached { [frames, overlap] in
+            let result = ImageStitcher.stitchVertically(images: frames, overlap: overlap)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                onProcessingEnd?()
+                if let image = result {
+                    let captureResult = CaptureResult(image: image, mode: .scroll)
+                    lastResult = captureResult
+                    onCaptureComplete?(captureResult)
+                }
+                isCapturing = false
+            }
+        }
     }
 
     /// スクロールキャプチャをキャンセル
@@ -636,8 +657,7 @@ public final class CaptureCoordinator {
     /// 録画を停止
     public func stopRecording() async {
         await recordingSession?.stop()
+        // onRecordingStopped は session.onComplete 経由で発火済み
         recordingSession = nil
-        isRecording = false
-        onRecordingStopped?()
     }
 }

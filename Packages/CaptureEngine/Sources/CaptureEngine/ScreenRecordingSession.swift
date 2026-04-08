@@ -36,6 +36,8 @@ public final class ScreenRecordingSession {
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
     private var outputURL: URL?
     private var durationTimer: Task<Void, Never>?
+    /// 録画開始時刻（正確な経過時間計測用）
+    private var startTime: Date?
     /// StreamOutputHandler の強参照を保持（SCStream は delegate を弱参照するため）
     private var streamOutputHandler: StreamOutputHandler?
 
@@ -157,8 +159,9 @@ public final class ScreenRecordingSession {
         self.stream = captureStream
         isRecording = true
         duration = 0
+        startTime = Date()
 
-        // 録画時間カウンター
+        // 録画時間カウンター（UI 表示用）
         durationTimer = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -174,8 +177,10 @@ public final class ScreenRecordingSession {
     public func stop() async {
         guard isRecording else { return }
         isRecording = false
+        let elapsed = -(startTime?.timeIntervalSinceNow ?? 0)
         durationTimer?.cancel()
         durationTimer = nil
+        startTime = nil
 
         // バックグラウンドスレッドからの書き込みを停止（stream 停止前に）
         setLockedInputs(video: nil, audio: nil)
@@ -206,13 +211,13 @@ public final class ScreenRecordingSession {
                 try? FileManager.default.removeItem(at: url)
             }
         } else if let url = outputURL {
-            if duration < 0.5 {
+            if elapsed < 0.5 {
                 // 極短録画は無効として扱う
-                Logger.capture.warning("録画時間が短すぎます: \(self.duration)秒")
+                Logger.capture.warning("録画時間が短すぎます: \(elapsed)秒")
                 try? FileManager.default.removeItem(at: url)
             } else {
                 onComplete?(url)
-                Logger.capture.info("画面録画を停止: \(url.lastPathComponent) (\(Int(self.duration))秒)")
+                Logger.capture.info("画面録画を停止: \(url.lastPathComponent) (\(Int(elapsed))秒)")
             }
         }
 
