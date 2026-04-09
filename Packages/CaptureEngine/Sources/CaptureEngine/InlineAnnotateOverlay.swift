@@ -226,12 +226,8 @@ public final class InlineAnnotateOverlay {
 
     private func showModeTabBar(currentMode: CaptureMode) {
         _selectedMode = currentMode
-        let binding = Binding<CaptureMode>(
-            get: { [weak self] in self?._selectedMode ?? .area },
-            set: { [weak self] in self?._selectedMode = $0 }
-        )
         let tabView = ModeTabBarView(
-            selectedMode: binding,
+            initialMode: currentMode,
             onModeSelected: { [weak self] mode in
                 self?._selectedMode = mode
                 self?.onModeChanged?(mode)
@@ -596,11 +592,11 @@ struct InlineToolbarView: View {
 // MARK: - Mode Tab Bar View
 
 struct ModeTabBarView: View {
-    @Binding var selectedMode: CaptureMode
+    @State private var selectedMode: CaptureMode
     let onModeSelected: (CaptureMode) -> Void
 
-    init(selectedMode: Binding<CaptureMode>, onModeSelected: @escaping (CaptureMode) -> Void) {
-        self._selectedMode = selectedMode
+    init(initialMode: CaptureMode, onModeSelected: @escaping (CaptureMode) -> Void) {
+        self._selectedMode = State(initialValue: initialMode)
         self.onModeSelected = onModeSelected
     }
 
