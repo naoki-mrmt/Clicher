@@ -312,10 +312,14 @@ public final class CaptureCoordinator {
 
     /// モードタブ経由でエリア選択済みの場合の録画処理
     private func startRecordingAfterSelection(macRect: CGRect, overlay: InlineAnnotateOverlay) async {
-        let screenHeight = ScreenUtilities.activeScreenFrame.height
+        // macOS グローバル座標 → ディスプレイローカル SCK 座標に変換
+        let screen = ScreenUtilities.screen(containing: macRect)
+        let screenFrame = screen.frame
+        let localX = macRect.origin.x - screenFrame.origin.x
+        let localY = macRect.origin.y - screenFrame.origin.y
         let sckRect = CGRect(
-            x: macRect.origin.x,
-            y: screenHeight - macRect.origin.y - macRect.height,
+            x: localX,
+            y: screenFrame.height - localY - macRect.height,
             width: macRect.width,
             height: macRect.height
         )
@@ -359,8 +363,17 @@ public final class CaptureCoordinator {
         }
         recordingSession = session
 
+        // エリアを含むディスプレイを特定
+        let targetDisplay: SCDisplay?
+        if let content = try? await captureService.availableContent() {
+            let displayID = ScreenUtilities.displayID(for: screen)
+            targetDisplay = content.displays.first { $0.displayID == displayID }
+        } else {
+            targetDisplay = nil
+        }
+
         do {
-            try await session.start(sourceRect: sckRect)
+            try await session.start(display: targetDisplay, sourceRect: sckRect)
             onRecordingStarted?()
         } catch {
             Logger.capture.error("録画開始失敗: \(error)")

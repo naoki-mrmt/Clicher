@@ -55,7 +55,11 @@ public final class ScrollCaptureSession {
 
         do {
             let content = try await captureService.availableContent()
-            guard let disp = content.displays.first else {
+            // macRect を含むディスプレイを特定（マルチディスプレイ対応）
+            let screen = ScreenUtilities.screen(containing: macRect)
+            let targetDisplayID = ScreenUtilities.displayID(for: screen)
+            guard let disp = content.displays.first(where: { $0.displayID == targetDisplayID })
+                    ?? content.displays.first else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
                 return

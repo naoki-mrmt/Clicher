@@ -73,8 +73,16 @@ public final class ScreenRecordingSession {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
 
         let scaleFactor = ScreenUtilities.activeScaleFactor
-        let width = Int(CGFloat(targetDisplay.width) * scaleFactor)
-        let height = Int(CGFloat(targetDisplay.height) * scaleFactor)
+        // sourceRect 指定時はその範囲の解像度を使用（AVAssetWriter と SCStream の寸法を一致させる）
+        let width: Int
+        let height: Int
+        if let sourceRect {
+            width = Int(sourceRect.width * scaleFactor)
+            height = Int(sourceRect.height * scaleFactor)
+        } else {
+            width = Int(CGFloat(targetDisplay.width) * scaleFactor)
+            height = Int(CGFloat(targetDisplay.height) * scaleFactor)
+        }
 
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,

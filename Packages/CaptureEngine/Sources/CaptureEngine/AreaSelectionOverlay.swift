@@ -71,9 +71,13 @@ private final class AreaSelectionWindow: NSWindow {
     }
 
     private func finishSelection(rect: CGRect?) {
+        // カーソル矩形を解除してからウィンドウを消す（crosshair 残留防止）
+        if let view = contentView {
+            view.discardCursorRects()
+        }
+        orderOut(nil)
         NSCursor.pop()
         NSCursor.arrow.set()
-        orderOut(nil)
         completionHandler?(rect)
         completionHandler = nil
     }
