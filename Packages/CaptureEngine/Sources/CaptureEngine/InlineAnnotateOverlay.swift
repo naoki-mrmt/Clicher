@@ -321,7 +321,7 @@ public final class InlineAnnotateOverlay {
     // MARK: - Recording Ready
 
     /// 録画待機状態を表示（エリア選択後、開始ボタン押下待ち）
-    public func showRecordingReady(screenRect: CGRect, onStart: @escaping () -> Void, onCancel: @escaping () -> Void) {
+    public func showRecordingReady(screenRect: CGRect, onStart: @escaping (RecordingAudioSettings) -> Void, onCancel: @escaping () -> Void) {
         // 既存のキャンバス/ツールバーをクリア
         canvasWindow?.orderOut(nil)
         canvasWindow = nil
@@ -360,9 +360,9 @@ public final class InlineAnnotateOverlay {
 
         // 録画開始ツールバー
         let toolbarView = RecordingReadyToolbarView(
-            onStart: { [weak self] in
+            onStart: { [weak self] audioSettings in
                 self?.dismiss()
-                onStart()
+                onStart(audioSettings)
             },
             onCancel: { [weak self] in
                 self?.dismiss()
@@ -639,9 +639,23 @@ struct ModeTabBarView: View {
 
 // MARK: - Recording Ready Toolbar
 
+/// 録画の音声設定
+public struct RecordingAudioSettings {
+    public var capturesSystemAudio: Bool
+    public var capturesMicrophone: Bool
+
+    public init(capturesSystemAudio: Bool = true, capturesMicrophone: Bool = false) {
+        self.capturesSystemAudio = capturesSystemAudio
+        self.capturesMicrophone = capturesMicrophone
+    }
+}
+
 struct RecordingReadyToolbarView: View {
-    let onStart: () -> Void
+    let onStart: (RecordingAudioSettings) -> Void
     let onCancel: () -> Void
+
+    @State private var capturesSystemAudio = true
+    @State private var capturesMicrophone = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -654,10 +668,28 @@ struct RecordingReadyToolbarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(L10n.cancel)
 
+            // 音声トグル
+            audioToggle(
+                icon: "speaker.wave.2.fill",
+                label: L10n.systemAudio,
+                isOn: $capturesSystemAudio
+            )
+
+            audioToggle(
+                icon: "mic.fill",
+                label: L10n.microphone,
+                isOn: $capturesMicrophone
+            )
+
             Spacer()
 
             // 録画開始ボタン
-            Button { onStart() } label: {
+            Button {
+                onStart(RecordingAudioSettings(
+                    capturesSystemAudio: capturesSystemAudio,
+                    capturesMicrophone: capturesMicrophone
+                ))
+            } label: {
                 HStack(spacing: 6) {
                     Circle()
                         .fill(.red)
@@ -676,6 +708,30 @@ struct RecordingReadyToolbarView: View {
         .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary, lineWidth: 0.5))
+    }
+
+    private func audioToggle(icon: String, label: String, isOn: Binding<Bool>) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                Text(label)
+                    .font(.system(size: 11))
+            }
+            .foregroundStyle(isOn.wrappedValue ? .primary : .tertiary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                isOn.wrappedValue
+                    ? AnyShapeStyle(.white.opacity(0.12))
+                    : AnyShapeStyle(.clear),
+                in: RoundedRectangle(cornerRadius: 5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 

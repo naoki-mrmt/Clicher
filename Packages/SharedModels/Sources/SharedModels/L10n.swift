@@ -141,6 +141,8 @@ public enum L10n {
 
     public static var startRecording: String { localized(ja: "録画開始", en: "Start Recording") }
     public static var stopRecording: String { localized(ja: "録画停止", en: "Stop Recording") }
+    public static var systemAudio: String { localized(ja: "システム音声", en: "System Audio") }
+    public static var microphone: String { localized(ja: "マイク", en: "Microphone") }
 
     // MARK: - Scroll Capture
 

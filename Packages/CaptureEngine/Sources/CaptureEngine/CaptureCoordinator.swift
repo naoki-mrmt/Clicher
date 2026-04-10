@@ -324,11 +324,13 @@ public final class CaptureCoordinator {
             height: macRect.height
         )
 
+        var audioSettings = RecordingAudioSettings()
         var didStart = false
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             overlay.showRecordingReady(
                 screenRect: macRect,
-                onStart: {
+                onStart: { settings in
+                    audioSettings = settings
                     didStart = true
                     continuation.resume()
                 },
@@ -350,6 +352,8 @@ public final class CaptureCoordinator {
         isRecording = true
 
         let session = ScreenRecordingSession()
+        session.capturesSystemAudio = audioSettings.capturesSystemAudio
+        session.capturesMicrophone = audioSettings.capturesMicrophone
         session.onComplete = { [weak self] url in
             guard let self else { return }
             Logger.capture.info("録画ファイル: \(url.path)")
