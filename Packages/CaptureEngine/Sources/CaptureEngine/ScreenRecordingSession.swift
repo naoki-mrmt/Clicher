@@ -46,6 +46,9 @@ public final class ScreenRecordingSession {
     /// ロック保護下の書き込み用入力（バックグラウンドスレッドから安全にアクセス）
     nonisolated(unsafe) private var lockedVideoInput: AVAssetWriterInput?
     nonisolated(unsafe) private var lockedAudioInput: AVAssetWriterInput?
+    nonisolated(unsafe) private var lockedWriter: AVAssetWriter?
+    /// 最初のサンプル到着時に startSession するためのフラグ
+    nonisolated(unsafe) private var sessionStarted = false
 
     public init() {}
 
@@ -128,14 +131,15 @@ public final class ScreenRecordingSession {
             throw RecordingError.writerFailed(error)
         }
 
-        writer.startSession(atSourceTime: .zero)
+        // startSession は最初のサンプル到着時に実際のタイムスタンプで開始する
+        sessionStarted = false
 
         self.assetWriter = writer
         self.videoInput = input
         self.adaptor = pixelBufferAdaptor
 
         // ロック保護下の参照を設定（同期コンテキストで実行）
-        setLockedInputs(video: input, audio: audioInput)
+        setLockedInputs(video: input, audio: audioInput, writer: writer)
 
         // SCStream セットアップ
         let filter = SCContentFilter(display: targetDisplay, excludingWindows: [])
@@ -191,7 +195,7 @@ public final class ScreenRecordingSession {
         startTime = nil
 
         // バックグラウンドスレッドからの書き込みを停止（stream 停止前に）
-        setLockedInputs(video: nil, audio: nil)
+        setLockedInputs(video: nil, audio: nil, writer: nil)
 
         // SCStream 停止 & output 解除
         if let stream, let handler = streamOutputHandler {
@@ -237,17 +241,29 @@ public final class ScreenRecordingSession {
     }
 
     /// ロック保護下の入力参照を設定（@MainActor の同期コンテキストから呼ぶ）
-    private nonisolated func setLockedInputs(video: AVAssetWriterInput?, audio: AVAssetWriterInput?) {
+    private nonisolated func setLockedInputs(video: AVAssetWriterInput?, audio: AVAssetWriterInput?, writer: AVAssetWriter? = nil) {
         writeLock.lock()
         lockedVideoInput = video
         lockedAudioInput = audio
+        if writer != nil || video == nil {
+            lockedWriter = writer
+        }
         writeLock.unlock()
+    }
+
+    /// 最初のサンプル到着時に AVAssetWriter のセッションを開始する（writeLock 保持下で呼ぶこと）
+    private nonisolated func ensureSessionStarted(with sampleBuffer: CMSampleBuffer) {
+        guard !sessionStarted else { return }
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        lockedWriter?.startSession(atSourceTime: timestamp)
+        sessionStarted = true
     }
 
     /// 映像サンプルバッファを受け取って書き込む（バックグラウンドスレッドから呼ばれる）
     nonisolated func handleVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         writeLock.lock()
         defer { writeLock.unlock() }
+        ensureSessionStarted(with: sampleBuffer)
         guard let input = lockedVideoInput, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
     }
@@ -256,6 +272,7 @@ public final class ScreenRecordingSession {
     nonisolated func handleAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         writeLock.lock()
         defer { writeLock.unlock() }
+        ensureSessionStarted(with: sampleBuffer)
         guard let input = lockedAudioInput, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
     }
