@@ -77,14 +77,15 @@ public final class ScreenRecordingSession {
 
         let scaleFactor = ScreenUtilities.activeScaleFactor
         // sourceRect 指定時はその範囲の解像度を使用（AVAssetWriter と SCStream の寸法を一致させる）
+        // H.264 は偶数ピクセルが必要なので切り下げて揃える
         let width: Int
         let height: Int
         if let sourceRect {
-            width = Int(sourceRect.width * scaleFactor)
-            height = Int(sourceRect.height * scaleFactor)
+            width = Int(sourceRect.width * scaleFactor) & ~1
+            height = Int(sourceRect.height * scaleFactor) & ~1
         } else {
-            width = Int(CGFloat(targetDisplay.width) * scaleFactor)
-            height = Int(CGFloat(targetDisplay.height) * scaleFactor)
+            width = Int(CGFloat(targetDisplay.width) * scaleFactor) & ~1
+            height = Int(CGFloat(targetDisplay.height) * scaleFactor) & ~1
         }
 
         let videoSettings: [String: Any] = [
@@ -146,8 +147,8 @@ public final class ScreenRecordingSession {
         let config = SCStreamConfiguration()
         if let sourceRect {
             config.sourceRect = sourceRect
-            config.width = Int(sourceRect.width * scaleFactor)
-            config.height = Int(sourceRect.height * scaleFactor)
+            config.width = width
+            config.height = height
         } else {
             config.width = width
             config.height = height
@@ -277,6 +278,9 @@ public final class ScreenRecordingSession {
 
     /// 映像サンプルバッファを受け取って書き込む（バックグラウンドスレッドから呼ばれる）
     nonisolated func handleVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+        // SCStream はステータス専用フレーム（画像データなし）を送ることがある
+        guard sampleBuffer.isValid,
+              CMSampleBufferGetImageBuffer(sampleBuffer) != nil else { return }
         writeLock.lock()
         defer { writeLock.unlock() }
         ensureSessionStarted(with: sampleBuffer)
@@ -286,6 +290,7 @@ public final class ScreenRecordingSession {
 
     /// 音声サンプルバッファを受け取って書き込む（バックグラウンドスレッドから呼ばれる）
     nonisolated func handleAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+        guard sampleBuffer.isValid, sampleBuffer.numSamples > 0 else { return }
         writeLock.lock()
         defer { writeLock.unlock() }
         ensureSessionStarted(with: sampleBuffer)
