@@ -147,14 +147,14 @@ struct ClicherApp: App {
             toastOverlay.dismiss()
         }
 
-        // 録画開始/停止 → RecordingIndicator 表示
+        // 録画開始/停止 → RecordingIndicator 表示（録画範囲をハイライト）
         var recordingIndicator: RecordingIndicator?
-        captureCoordinator.onRecordingStarted = {
+        captureCoordinator.onRecordingStarted = { screenRect in
             let indicator = RecordingIndicator()
             indicator.onStop = {
                 Task { await captureCoordinator.stopRecording() }
             }
-            indicator.show()
+            indicator.show(screenRect: screenRect)
             recordingIndicator = indicator
         }
         captureCoordinator.onRecordingStopped = {
@@ -162,21 +162,32 @@ struct ClicherApp: App {
             recordingIndicator = nil
         }
 
-        // 録画完了 → 保存先に移動して Finder で表示
+        // 録画完了 → 選択パネルを表示（保存 / コピー / Finder で表示）
+        let recordingCompletePanel = RecordingCompletePanel()
         captureCoordinator.onRecordingComplete = { [appSettings] url in
-            let saveDir = appSettings.saveDirectory
-            let fileName = "Clicher_Recording_\(Int(Date().timeIntervalSince1970)).mp4"
-            let destination = saveDir.appendingPathComponent(fileName)
-            do {
-                try FileManager.default.moveItem(at: url, to: destination)
-                toastOverlay.show(L10n.saved(fileName), style: .success, duration: 3)
-                NSWorkspace.shared.activateFileViewerSelecting([destination])
-            } catch {
-                // 移動失敗 → 元の場所を通知
-                Logger.app.error("録画ファイルの移動に失敗: \(error)")
-                toastOverlay.show(L10n.saved(url.lastPathComponent), style: .success, duration: 3)
-                NSWorkspace.shared.activateFileViewerSelecting([url])
+            recordingCompletePanel.onSave = { videoURL in
+                let saveDir = appSettings.saveDirectory
+                let fileName = "Clicher_Recording_\(Int(Date().timeIntervalSince1970)).mp4"
+                let destination = saveDir.appendingPathComponent(fileName)
+                do {
+                    try FileManager.default.moveItem(at: videoURL, to: destination)
+                    toastOverlay.show(L10n.saved(fileName), style: .success, duration: 3)
+                } catch {
+                    Logger.app.error("録画ファイルの移動に失敗: \(error)")
+                    toastOverlay.show(L10n.saveFailed, style: .error)
+                }
             }
+            recordingCompletePanel.onCopy = { videoURL in
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.writeObjects([videoURL as NSURL])
+                toastOverlay.show(L10n.copied, style: .success, duration: 2)
+            }
+            recordingCompletePanel.onReveal = { videoURL in
+                NSWorkspace.shared.activateFileViewerSelecting([videoURL])
+            }
+            recordingCompletePanel.onClose = {}
+            recordingCompletePanel.show(videoURL: url)
         }
 
         // Annotate 完了 → クリップボードにコピー + トースト通知

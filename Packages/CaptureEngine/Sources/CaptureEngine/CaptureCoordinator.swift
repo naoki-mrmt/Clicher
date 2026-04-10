@@ -36,8 +36,8 @@ public final class CaptureCoordinator {
     public var onProcessingStart: ((String) -> Void)?
     public var onProcessingEnd: (() -> Void)?
 
-    /// 録画開始/停止コールバック（RecordingIndicator 表示用）
-    public var onRecordingStarted: (() -> Void)?
+    /// 録画開始コールバック（RecordingIndicator 表示用、録画範囲を含む）
+    public var onRecordingStarted: ((_ screenRect: CGRect?) -> Void)?
     public var onRecordingStopped: (() -> Void)?
 
     /// 録画完了コールバック（動画ファイル URL）
@@ -396,7 +396,7 @@ public final class CaptureCoordinator {
 
         do {
             try await session.start(display: targetDisplay, sourceRect: sckRect)
-            onRecordingStarted?()
+            onRecordingStarted?(macRect)
         } catch {
             Logger.capture.error("録画開始失敗: \(error)")
             onError?("録画開始失敗: \(error.localizedDescription)")
