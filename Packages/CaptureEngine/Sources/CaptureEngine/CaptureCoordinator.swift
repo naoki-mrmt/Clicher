@@ -184,7 +184,12 @@ public final class CaptureCoordinator {
         overlay.hideDim()
         overlay.removeKeyMonitor()
 
-        let areaRect = await AreaSelectionOverlay.selectArea()
+        // エリア選択と SCShareableContent 取得を並行実行（速度改善）
+        async let selectionTask = AreaSelectionOverlay.selectArea()
+        async let contentTask: SCShareableContent? = try? captureService.availableContent()
+
+        let areaRect = await selectionTask
+        let prefetchedContent = await contentTask
 
         guard let macRect = areaRect else {
             // ESC キャンセル
@@ -199,13 +204,13 @@ public final class CaptureCoordinator {
 
         switch mode {
         case .area:
-            await captureAreaAfterSelection(macRect: macRect, overlay: overlay)
+            await captureAreaAfterSelection(macRect: macRect, overlay: overlay, prefetchedContent: prefetchedContent)
         case .recording:
             await startRecordingAfterSelection(macRect: macRect, overlay: overlay)
         case .ocr:
             overlay.dismiss()
             inlineAnnotate = nil
-            await startOCRAfterSelection(macRect: macRect)
+            await startOCRAfterSelection(macRect: macRect, prefetchedContent: prefetchedContent)
         case .scroll:
             overlay.dismiss()
             inlineAnnotate = nil
@@ -221,9 +226,14 @@ public final class CaptureCoordinator {
     // MARK: - Area Capture (after mode bar selection)
 
     /// モードタブ経由でエリア選択済みの場合のキャプチャ処理
-    private func captureAreaAfterSelection(macRect: CGRect, overlay: InlineAnnotateOverlay) async {
+    private func captureAreaAfterSelection(macRect: CGRect, overlay: InlineAnnotateOverlay, prefetchedContent: SCShareableContent? = nil) async {
         do {
-            let content = try await captureService.availableContent()
+            let content: SCShareableContent
+            if let prefetchedContent {
+                content = prefetchedContent
+            } else {
+                content = try await captureService.availableContent()
+            }
             guard let display = findDisplay(for: macRect, in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
@@ -235,7 +245,8 @@ public final class CaptureCoordinator {
             overlay.hideDim()
             try await Task.sleep(for: .milliseconds(16))
 
-            let image = try await captureService.captureArea(macRect: macRect, display: display)
+            nonisolated(unsafe) let unsafeDisplay = display
+            let image = try await captureService.captureArea(macRect: macRect, display: unsafeDisplay)
 
             overlay.onComplete = { [weak self] editedImage in
                 guard let self else { return }
@@ -270,19 +281,25 @@ public final class CaptureCoordinator {
     }
 
     /// モードタブ経由でエリア選択済みの場合の OCR 処理
-    private func startOCRAfterSelection(macRect: CGRect) async {
+    private func startOCRAfterSelection(macRect: CGRect, prefetchedContent: SCShareableContent? = nil) async {
         // オーバーレイ非表示がウィンドウサーバーに反映されるのを待つ
         try? await Task.sleep(for: .milliseconds(16))
 
         do {
-            let content = try await captureService.availableContent()
+            let content: SCShareableContent
+            if let prefetchedContent {
+                content = prefetchedContent
+            } else {
+                content = try await captureService.availableContent()
+            }
             guard let display = findDisplay(for: macRect, in: content) else {
                 Logger.capture.error("ディスプレイが見つかりません")
                 isCapturing = false
                 return
             }
 
-            let image = try await captureService.captureArea(macRect: macRect, display: display)
+            nonisolated(unsafe) let unsafeDisplay = display
+            let image = try await captureService.captureArea(macRect: macRect, display: unsafeDisplay)
 
             onProcessingStart?(L10n.processingOCR)
             let ocrResult = try await OCRService.recognizeText(from: image)
