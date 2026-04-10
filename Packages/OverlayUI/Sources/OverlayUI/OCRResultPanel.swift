@@ -29,6 +29,8 @@ public final class OCRResultPanel {
         )
 
         let hostingView = NSHostingView(rootView: view)
+        // システムの外観モードに追従させる（material 背景上の NSTextView が正しい色を使うため）
+        hostingView.appearance = NSApp.effectiveAppearance
         let fittingSize = hostingView.fittingSize
         let panelSize = NSSize(
             width: min(max(fittingSize.width, 320), 560),

@@ -603,7 +603,6 @@ struct ModeTabBarView: View {
     private var modes: [(CaptureMode, String)] {
         [
             (.area, L10n.screenshot),
-            (.scroll, L10n.scrollCapture),
             (.recording, L10n.screenRecording),
             (.ocr, L10n.recognizeText),
         ]
