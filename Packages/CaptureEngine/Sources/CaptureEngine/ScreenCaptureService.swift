@@ -24,14 +24,13 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public init() {}
 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
-        // macOS スクリーン座標（左下原点）→ CG ディスプレイ座標（左上原点）
-        // マルチディスプレイ対応: macRect を含むスクリーンの displayID を使用
-        let screen = ScreenUtilities.screen(containing: macRect)
-        let displayID = ScreenUtilities.displayID(for: screen)
-        let displayBounds = CGDisplayBounds(displayID)
+        // macOS スクリーン座標（左下原点）→ グローバル CG 座標（左上原点）
+        // CGWindowListCreateImage はグローバル CG 座標を期待する
+        // 変換にはメインスクリーンの高さを使う（両座標系の原点がメインディスプレイにあるため）
+        let mainScreenHeight = NSScreen.screens.first?.frame.height ?? 0
         let cgRect = CGRect(
             x: macRect.origin.x,
-            y: displayBounds.height - macRect.origin.y - macRect.height,
+            y: mainScreenHeight - macRect.origin.y - macRect.height,
             width: macRect.width,
             height: macRect.height
         )
