@@ -11,6 +11,9 @@ public enum L10n {
         return !hasJapanese
     }
 
+    /// 外部から言語判定を参照するための公開プロパティ
+    public static var isEnglishPublic: Bool { isEnglish }
+
     private static func localized(ja: String, en: String) -> String {
         isEnglish ? en : ja
     }
@@ -143,6 +146,7 @@ public enum L10n {
     public static var stopRecording: String { localized(ja: "録画停止", en: "Stop Recording") }
     public static var systemAudio: String { localized(ja: "システム音声", en: "System Audio") }
     public static var microphone: String { localized(ja: "マイク", en: "Microphone") }
+    public static var copyAll: String { localized(ja: "すべてコピー", en: "Copy All") }
 
     // MARK: - Scroll Capture
 

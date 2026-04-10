@@ -89,6 +89,14 @@ struct ClicherApp: App {
             quickAccessOverlay.show(result: result)
         }
 
+        // OCR 結果 → パネル表示（Lark 風テキスト確認 UI）
+        let ocrPanel = OCRResultPanel()
+        captureCoordinator.onOCRResult = { text, _ in
+            ocrPanel.show(text: text) {
+                toastOverlay.show(L10n.copied, style: .success, duration: 2)
+            }
+        }
+
         // Quick Access Overlay のアクション
         quickAccessOverlay.onSave = { result in
             if let url = ImageExporter.saveToFile(result.image, directory: appSettings.saveDirectory) {

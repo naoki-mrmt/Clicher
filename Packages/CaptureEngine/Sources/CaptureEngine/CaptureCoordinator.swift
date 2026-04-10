@@ -43,6 +43,9 @@ public final class CaptureCoordinator {
     /// 録画完了コールバック（動画ファイル URL）
     public var onRecordingComplete: ((URL) -> Void)?
 
+    /// OCR 結果表示コールバック（テキストをパネルで表示）
+    public var onOCRResult: ((String, CGImage) -> Void)?
+
     /// 録画中かどうか
     public private(set) var isRecording = false
 
@@ -295,14 +298,12 @@ public final class CaptureCoordinator {
                         ? barcodeSection
                         : "\(ocrResult.text)\n\n--- Barcodes ---\n\(barcodeSection)"
                 }
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(fullText, forType: .string)
+                // OCR 結果パネルを表示（ユーザーが確認してからコピー）
+                onOCRResult?(fullText, image)
             }
 
             let result = CaptureResult(image: image, mode: .ocr, captureRect: macRect, ocrText: ocrResult.text)
             lastResult = result
-            onCaptureComplete?(result)
         } catch {
             Logger.capture.error("OCR 失敗: \(error)")
             onError?("OCR 失敗: \(error.localizedDescription)")
@@ -561,11 +562,7 @@ public final class CaptureCoordinator {
                         ? barcodeSection
                         : "\(ocrResult.text)\n\n--- Barcodes ---\n\(barcodeSection)"
                 }
-                await MainActor.run {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(fullText, forType: .string)
-                }
+                onOCRResult?(fullText, image)
             }
 
             let result = CaptureResult(
@@ -573,7 +570,6 @@ public final class CaptureCoordinator {
                 ocrText: ocrResult.text.isEmpty ? nil : ocrResult.text
             )
             lastResult = result
-            onCaptureComplete?(result)
         } catch {
             Logger.capture.error("OCR キャプチャ失敗: \(error)")
             onError?("OCR キャプチャ失敗: \(error.localizedDescription)")
