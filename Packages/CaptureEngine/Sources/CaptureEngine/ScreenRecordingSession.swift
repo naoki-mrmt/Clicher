@@ -209,16 +209,32 @@ public final class ScreenRecordingSession {
         streamOutputHandler = nil
 
         // AVAssetWriter 完了
-        videoInput?.markAsFinished()
-        audioInput?.markAsFinished()
-        await assetWriter?.finishWriting()
+        // サンプルが1つも書き込まれていない場合は startSession 未呼び出しなので
+        // finishWriting せずに破棄する
+        let hasFrames: Bool = {
+            writeLock.lock()
+            defer { writeLock.unlock() }
+            return sessionStarted
+        }()
+
+        if hasFrames {
+            videoInput?.markAsFinished()
+            audioInput?.markAsFinished()
+            await assetWriter?.finishWriting()
+        }
 
         // finishWriting 後のエラーチェック
         if let writer = assetWriter, writer.status == .failed {
             let message = writer.error?.localizedDescription ?? "不明"
             Logger.capture.error("録画ファイルの書き込み失敗: \(message)")
-            onError?(L10n.error)
+            onError?("録画ファイルの書き込み失敗: \(message)")
             // 破損ファイルを削除
+            if let url = outputURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+        } else if !hasFrames {
+            // フレーム未取得 → ファイル削除
+            Logger.capture.warning("録画フレームが取得できませんでした")
             if let url = outputURL {
                 try? FileManager.default.removeItem(at: url)
             }
