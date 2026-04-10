@@ -7,13 +7,11 @@ import SharedModels
 @MainActor
 public final class OCRResultPanel {
     private var panel: NSPanel?
+    private var keyMonitor: Any?
 
     public init() {}
 
     /// OCR 結果パネルを表示
-    /// - Parameters:
-    ///   - text: 認識されたテキスト
-    ///   - onCopyAll: 全文コピー時のコールバック
     public func show(text: String, onCopyAll: @escaping () -> Void) {
         dismiss()
 
@@ -29,8 +27,6 @@ public final class OCRResultPanel {
         )
 
         let hostingView = NSHostingView(rootView: view)
-        // システムの外観モードに追従させる（material 背景上の NSTextView が正しい色を使うため）
-        hostingView.appearance = NSApp.effectiveAppearance
         let fittingSize = hostingView.fittingSize
         let panelSize = NSSize(
             width: min(max(fittingSize.width, 320), 560),
@@ -53,13 +49,12 @@ public final class OCRResultPanel {
         p.titlebarAppearsTransparent = true
         p.isMovableByWindowBackground = true
 
-        // 画面中央に配置
         p.center()
         p.orderFrontRegardless()
 
         // ESC で閉じる
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 { // Escape
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {
                 self?.dismiss()
                 return nil
             }
@@ -71,6 +66,10 @@ public final class OCRResultPanel {
 
     /// パネルを閉じる
     public func dismiss() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
         panel?.orderOut(nil)
         panel = nil
     }
@@ -82,8 +81,6 @@ struct OCRResultView: View {
     let text: String
     let onCopyAll: () -> Void
     let onClose: () -> Void
-
-    @State private var showCopiedToast = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -111,9 +108,11 @@ struct OCRResultView: View {
 
             // テキスト表示（選択・コピー可能）
             ScrollView {
-                SelectableText(text: text)
-                    .padding(16)
+                Text(text)
+                    .font(.system(size: 13))
+                    .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
             }
             .frame(maxHeight: 320)
 
@@ -121,14 +120,12 @@ struct OCRResultView: View {
 
             // アクションバー
             HStack {
-                // テキスト文字数
                 Text("\(text.count) " + (L10n.isEnglishPublic ? "characters" : "文字"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
 
                 Spacer()
 
-                // コピーボタン
                 Button {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
@@ -155,42 +152,5 @@ struct OCRResultView: View {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(.quaternary, lineWidth: 0.5)
         )
-    }
-}
-
-// MARK: - Selectable Text (NSTextView wrapper)
-
-/// NSTextView をラップして、テキストの選択・コピーを可能にする
-struct SelectableText: NSViewRepresentable {
-    let text: String
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let textView = NSTextView()
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.isRichText = false
-        textView.font = .systemFont(ofSize: 13)
-        textView.textColor = .labelColor
-        textView.backgroundColor = .clear
-        textView.drawsBackground = false
-        textView.string = text
-        textView.textContainerInset = .zero
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.textContainer?.widthTracksTextView = true
-
-        let scrollView = NSScrollView()
-        scrollView.documentView = textView
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        return scrollView
-    }
-
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if let textView = nsView.documentView as? NSTextView {
-            textView.string = text
-        }
     }
 }
