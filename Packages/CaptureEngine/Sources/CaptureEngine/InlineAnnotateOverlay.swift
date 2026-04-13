@@ -497,10 +497,8 @@ struct InlineToolbarView: View {
             Divider()
                 .frame(height: 20)
 
-            // 色選択
-            ColorPicker("", selection: strokeColorBinding)
-                .labelsHidden()
-                .frame(width: 28)
+            // 色選択（Lark 風スウォッチ）
+            ColorSwatchPicker(selection: strokeColorBinding)
 
             // 線幅スライダー
             HStack(spacing: 4) {
@@ -731,6 +729,98 @@ struct RecordingReadyToolbarView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+}
+
+// MARK: - Color Swatch Picker (Lark-style)
+
+/// Lark 風のカラースウォッチピッカー
+/// プリセット色のスウォッチを横並びで表示し、カスタムカラーピッカーも開ける
+struct ColorSwatchPicker: View {
+    @Binding var selection: Color
+
+    /// プリセットカラー（Lark 風の配色 / システムカラーで統一）
+    private static let presetColors: [Color] = [
+        Color(nsColor: .systemRed),
+        Color(nsColor: .systemOrange),
+        Color(nsColor: .systemYellow),
+        Color(nsColor: .systemGreen),
+        Color(nsColor: .systemBlue),
+        Color(nsColor: .systemPurple),
+        Color(nsColor: .black),
+        Color(nsColor: .white),
+    ]
+
+    @State private var showCustomPicker = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Self.presetColors, id: \.self) { color in
+                swatch(color: color)
+            }
+            // カスタムカラーピッカー
+            ColorPicker("", selection: $selection)
+                .labelsHidden()
+                .frame(width: 20, height: 20)
+        }
+    }
+
+    private func swatch(color: Color) -> some View {
+        let isSelected = isColorEqual(selection, color)
+        return Button {
+            selection = color
+        } label: {
+            Circle()
+                .fill(color)
+                .frame(width: 18, height: 18)
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.6), lineWidth: 0.5)
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.accentColor, lineWidth: isSelected ? 2 : 0)
+                        .padding(-2)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(colorLabel(color))
+    }
+
+    /// Color を NSColor 経由で比較（SwiftUI の Color 直接比較が不安定なため）
+    private func isColorEqual(_ a: Color, _ b: Color) -> Bool {
+        let nsA = NSColor(a).usingColorSpace(.sRGB)
+        let nsB = NSColor(b).usingColorSpace(.sRGB)
+        guard let nsA, let nsB else { return false }
+        let ep: CGFloat = 0.02
+        return abs(nsA.redComponent - nsB.redComponent) < ep
+            && abs(nsA.greenComponent - nsB.greenComponent) < ep
+            && abs(nsA.blueComponent - nsB.blueComponent) < ep
+    }
+
+    private func colorLabel(_ color: Color) -> String {
+        let ns = NSColor(color).usingColorSpace(.sRGB)
+        guard let ns else { return "" }
+        let presets: [(NSColor, String)] = [
+            (.systemRed, "Red"),
+            (.systemOrange, "Orange"),
+            (.systemYellow, "Yellow"),
+            (.systemGreen, "Green"),
+            (.systemBlue, "Blue"),
+            (.systemPurple, "Purple"),
+            (.black, "Black"),
+            (.white, "White"),
+        ]
+        let ep: CGFloat = 0.02
+        for (c, name) in presets {
+            guard let cc = c.usingColorSpace(.sRGB) else { continue }
+            if abs(cc.redComponent - ns.redComponent) < ep
+                && abs(cc.greenComponent - ns.greenComponent) < ep
+                && abs(cc.blueComponent - ns.blueComponent) < ep {
+                return name
+            }
+        }
+        return ""
     }
 }
 

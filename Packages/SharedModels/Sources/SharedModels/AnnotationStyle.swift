@@ -11,7 +11,7 @@ public struct AnnotationStyle: Equatable, @unchecked Sendable {
     public var cornerRadius: CGFloat
 
     public init(
-        strokeColor: NSColor = .systemRed,
+        strokeColor: NSColor = .systemOrange,
         fillColor: NSColor = .clear,
         lineWidth: CGFloat = 3.0,
         fontSize: CGFloat = 24.0,
