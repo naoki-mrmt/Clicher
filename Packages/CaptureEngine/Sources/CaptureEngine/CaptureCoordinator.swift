@@ -185,13 +185,13 @@ public final class CaptureCoordinator {
         overlay.removeKeyMonitor()
 
         // エリア選択と SCShareableContent 取得を並行実行（速度改善）
-        async let selectionTask = AreaSelectionOverlay.selectArea()
+        async let selectionTask = AreaSelectionOverlay.select()
         async let contentTask: SCShareableContent? = try? captureService.availableContent()
 
-        let areaRect = await selectionTask
+        let selectionResult = await selectionTask
         let prefetchedContent = await contentTask
 
-        guard let macRect = areaRect else {
+        guard let selectionResult else {
             // ESC キャンセル
             overlay.dismiss()
             inlineAnnotate = nil
@@ -199,27 +199,35 @@ public final class CaptureCoordinator {
             return
         }
 
-        // エリア選択完了時点のモードで分岐
-        let mode = modeBarSelectedMode
+        switch selectionResult {
+        case .windowClick(let clickPoint):
+            // クリック → ウィンドウキャプチャ
+            overlay.dismiss()
+            inlineAnnotate = nil
+            await captureWindowAtPoint(clickPoint, prefetchedContent: prefetchedContent)
 
-        switch mode {
-        case .area:
-            await captureAreaAfterSelection(macRect: macRect, overlay: overlay, prefetchedContent: prefetchedContent)
-        case .recording:
-            await startRecordingAfterSelection(macRect: macRect, overlay: overlay)
-        case .ocr:
-            overlay.dismiss()
-            inlineAnnotate = nil
-            await startOCRAfterSelection(macRect: macRect, prefetchedContent: prefetchedContent)
-        case .scroll:
-            overlay.dismiss()
-            inlineAnnotate = nil
-            await startScrollAfterSelection(macRect: macRect)
-        default:
-            // window/fullscreen はモードタブ選択時に直接実行されるためここには来ない
-            overlay.dismiss()
-            inlineAnnotate = nil
-            isCapturing = false
+        case .area(let macRect):
+            // ドラッグ → モードに応じて分岐
+            let mode = modeBarSelectedMode
+
+            switch mode {
+            case .area:
+                await captureAreaAfterSelection(macRect: macRect, overlay: overlay, prefetchedContent: prefetchedContent)
+            case .recording:
+                await startRecordingAfterSelection(macRect: macRect, overlay: overlay)
+            case .ocr:
+                overlay.dismiss()
+                inlineAnnotate = nil
+                await startOCRAfterSelection(macRect: macRect, prefetchedContent: prefetchedContent)
+            case .scroll:
+                overlay.dismiss()
+                inlineAnnotate = nil
+                await startScrollAfterSelection(macRect: macRect)
+            default:
+                overlay.dismiss()
+                inlineAnnotate = nil
+                isCapturing = false
+            }
         }
     }
 
@@ -414,10 +422,21 @@ public final class CaptureCoordinator {
         inlineAnnotate?.removeKeyMonitor()
 
         // エリア選択と SCShareableContent 取得を並行実行（速度改善）
-        async let selectionTask = AreaSelectionOverlay.selectArea()
+        async let selectionTask = AreaSelectionOverlay.select()
         async let contentTask = captureService.availableContent()
 
-        guard let macRect = await selectionTask else {
+        let selectionResult = await selectionTask
+
+        // ウィンドウクリックの場合
+        if case .windowClick(let clickPoint) = selectionResult {
+            let prefetchedContent = try? await contentTask
+            inlineAnnotate?.dismiss()
+            inlineAnnotate = nil
+            await captureWindowAtPoint(clickPoint, prefetchedContent: prefetchedContent)
+            return
+        }
+
+        guard case .area(let macRect) = selectionResult else {
             Logger.capture.info("エリア選択がキャンセルされました")
             _ = try? await contentTask
             inlineAnnotate?.dismiss()
@@ -504,6 +523,53 @@ public final class CaptureCoordinator {
                 image: image,
                 mode: .window,
                 captureRect: selectedWindow.frame
+            )
+            lastResult = result
+            onCaptureComplete?(result)
+        } catch {
+            Logger.capture.error("ウィンドウキャプチャ失敗: \(error)")
+            onError?("ウィンドウキャプチャ失敗: \(error.localizedDescription)")
+        }
+    }
+
+    /// クリック位置のウィンドウをキャプチャ（エリア選択でクリックした場合）
+    private func captureWindowAtPoint(_ clickPoint: CGPoint, prefetchedContent: SCShareableContent? = nil) async {
+        defer { isCapturing = false }
+
+        do {
+            let content: SCShareableContent
+            if let prefetchedContent {
+                content = prefetchedContent
+            } else {
+                content = try await captureService.availableContent()
+            }
+
+            let bundleID = Bundle.main.bundleIdentifier
+            let screenHeight = ScreenUtilities.activeScreenFrame.height
+            // macOS 座標（左下原点）→ SCK 座標（左上原点）
+            let flippedY = screenHeight - clickPoint.y
+
+            // クリック位置を含むウィンドウを検索（最前面から順に）
+            let validWindows = content.windows.filter { window in
+                window.isOnScreen
+                    && window.frame.width > 10
+                    && window.frame.height > 10
+                    && window.owningApplication?.bundleIdentifier != bundleID
+            }
+
+            guard let targetWindow = validWindows.first(where: { window in
+                window.frame.contains(CGPoint(x: clickPoint.x, y: flippedY))
+            }) else {
+                Logger.capture.info("クリック位置にウィンドウが見つかりません")
+                return
+            }
+
+            nonisolated(unsafe) let unsafeWindow = targetWindow
+            let image = try await captureService.captureWindow(unsafeWindow)
+            let result = CaptureResult(
+                image: image,
+                mode: .window,
+                captureRect: targetWindow.frame
             )
             lastResult = result
             onCaptureComplete?(result)

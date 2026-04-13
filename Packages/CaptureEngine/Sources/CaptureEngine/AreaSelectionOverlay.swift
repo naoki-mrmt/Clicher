@@ -2,8 +2,17 @@ import AppKit
 import OSLog
 import Utilities
 
+/// エリア選択の結果
+public enum AreaSelectionResult {
+    /// ドラッグによるエリア選択
+    case area(CGRect)
+    /// クリックによるウィンドウ選択（クリック位置、macOS スクリーン座標）
+    case windowClick(CGPoint)
+}
+
 /// エリア選択オーバーレイ
 /// 全画面透明ウィンドウでマウスドラッグによる範囲選択を行う
+/// クリック（ドラッグなし）の場合はウィンドウ選択として扱う
 public final class AreaSelectionOverlay {
     /// ウィンドウの強参照（ARC による早期解放を防ぐ）
     @MainActor private static var activeWindow: AreaSelectionWindow?
@@ -11,14 +20,27 @@ public final class AreaSelectionOverlay {
     /// エリア選択を開始し、ユーザーが範囲を選択するまで待機
     /// キャンセル（Esc）の場合は nil を返す
     public static func selectArea() async -> CGRect? {
+        let result = await select()
+        switch result {
+        case .area(let rect):
+            return rect
+        case .windowClick, .none:
+            return nil
+        }
+    }
+
+    /// エリア選択またはウィンドウクリックを開始
+    /// ドラッグ → .area、クリック → .windowClick、ESC → nil
+    public static func select() async -> AreaSelectionResult? {
         await withCheckedContinuation { continuation in
             Task { @MainActor in
                 var resumed = false
-                let overlay = AreaSelectionWindow { rect in
+                let overlay = AreaSelectionWindow { result in
                     guard !resumed else { return }
                     resumed = true
                     activeWindow = nil
-                    continuation.resume(returning: rect)
+                    nonisolated(unsafe) let safeResult = result
+                    continuation.resume(returning: safeResult)
                 }
                 activeWindow = overlay
                 overlay.show()
@@ -32,9 +54,9 @@ public final class AreaSelectionOverlay {
 /// 透明なフルスクリーンウィンドウでエリア選択UIを提供
 private final class AreaSelectionWindow: NSWindow {
     private var selectionView: AreaSelectionView?
-    private var completionHandler: ((CGRect?) -> Void)?
+    private var completionHandler: ((AreaSelectionResult?) -> Void)?
 
-    init(completion: @escaping (CGRect?) -> Void) {
+    init(completion: @escaping (AreaSelectionResult?) -> Void) {
         self.completionHandler = completion
 
         let screen = ScreenUtilities.activeScreen
@@ -53,8 +75,8 @@ private final class AreaSelectionWindow: NSWindow {
         ignoresMouseEvents = false
         acceptsMouseMovedEvents = true
 
-        let view = AreaSelectionView { [weak self] rect in
-            self?.finishSelection(rect: rect)
+        let view = AreaSelectionView { [weak self] result in
+            self?.finishSelection(result)
         }
         self.selectionView = view
         contentView = view
@@ -70,7 +92,7 @@ private final class AreaSelectionWindow: NSWindow {
         }
     }
 
-    private func finishSelection(rect: CGRect?) {
+    private func finishSelection(_ result: AreaSelectionResult?) {
         // カーソル矩形を解除してからウィンドウを消す（crosshair 残留防止）
         if let view = contentView {
             view.discardCursorRects()
@@ -78,7 +100,7 @@ private final class AreaSelectionWindow: NSWindow {
         orderOut(nil)
         NSCursor.pop()
         NSCursor.arrow.set()
-        completionHandler?(rect)
+        completionHandler?(result)
         completionHandler = nil
     }
 
@@ -95,7 +117,7 @@ private final class AreaSelectionWindow: NSWindow {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == Self.kEscape {
-            finishSelection(rect: nil)
+            finishSelection(nil)
             return
         }
         if event.keyCode == Self.kReturn || event.keyCode == Self.kNumpadEnter {
@@ -123,7 +145,7 @@ private final class AreaSelectionView: NSView {
 
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
-    private var completionHandler: ((CGRect?) -> Void)?
+    private var completionHandler: ((AreaSelectionResult?) -> Void)?
     private var phase: Phase = .idle
     private var adjustDragStart: NSPoint?
 
@@ -138,7 +160,7 @@ private final class AreaSelectionView: NSView {
         )
     }
 
-    init(completion: @escaping (CGRect?) -> Void) {
+    init(completion: @escaping (AreaSelectionResult?) -> Void) {
         self.completionHandler = completion
         super.init(frame: .zero)
         addTrackingArea(NSTrackingArea(
@@ -234,11 +256,13 @@ private final class AreaSelectionView: NSView {
         case .drawing:
             currentPoint = point
             guard let rect = selectionRect, rect.width >= 4, rect.height >= 4 else {
-                // 小さすぎる → リセット
+                // 小さすぎるドラッグ → ウィンドウクリックとして扱う
+                let clickPoint = convert(point, to: nil)
+                let screenPoint = window?.convertPoint(toScreen: clickPoint) ?? point
                 startPoint = nil
                 currentPoint = nil
                 phase = .idle
-                needsDisplay = true
+                completionHandler?(.windowClick(screenPoint))
                 return
             }
             // 描画完了 → 即確定（Lark 風）
@@ -271,7 +295,7 @@ private final class AreaSelectionView: NSView {
         }
         // NSView 座標 → NSScreen 座標に正確に変換
         let screenRect = win.convertToScreen(rect)
-        completionHandler?(screenRect)
+        completionHandler?(.area(screenRect))
     }
 
     override func draw(_ dirtyRect: NSRect) {

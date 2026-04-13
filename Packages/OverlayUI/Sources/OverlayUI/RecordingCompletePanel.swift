@@ -15,6 +15,8 @@ public final class RecordingCompletePanel {
     public var onReveal: ((URL) -> Void)?
     /// クリップボードにコピー（ファイルパスとして）
     public var onCopy: ((URL) -> Void)?
+    /// GIF に変換
+    public var onConvertGIF: ((URL) -> Void)?
     /// 閉じる
     public var onClose: (() -> Void)?
 
@@ -36,6 +38,10 @@ public final class RecordingCompletePanel {
             },
             onCopy: { [weak self] in
                 self?.onCopy?(videoURL)
+                self?.dismiss()
+            },
+            onConvertGIF: { [weak self] in
+                self?.onConvertGIF?(videoURL)
                 self?.dismiss()
             },
             onClose: { [weak self] in
@@ -95,6 +101,7 @@ struct RecordingCompleteView: View {
     let onSave: () -> Void
     let onReveal: () -> Void
     let onCopy: () -> Void
+    let onConvertGIF: () -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -135,6 +142,9 @@ struct RecordingCompleteView: View {
                 }
                 actionButton(icon: "doc.on.doc", label: L10n.copy, color: .secondary) {
                     onCopy()
+                }
+                actionButton(icon: "gift", label: "GIF", color: .orange) {
+                    onConvertGIF()
                 }
                 actionButton(icon: "magnifyingglass", label: L10n.revealInFinder, color: .secondary) {
                     onReveal()

@@ -186,6 +186,24 @@ struct ClicherApp: App {
             recordingCompletePanel.onReveal = { videoURL in
                 NSWorkspace.shared.activateFileViewerSelecting([videoURL])
             }
+            recordingCompletePanel.onConvertGIF = { [appSettings] videoURL in
+                toastOverlay.show(L10n.convertToGIF + "...", style: .info, duration: 30)
+                Task {
+                    do {
+                        let gifURL = try await GIFConverter.convert(videoURL: videoURL, width: 640)
+                        let saveDir = appSettings.saveDirectory
+                        let fileName = gifURL.lastPathComponent
+                        let destination = saveDir.appendingPathComponent(fileName)
+                        try? FileManager.default.moveItem(at: gifURL, to: destination)
+                        let finalURL = FileManager.default.fileExists(atPath: destination.path) ? destination : gifURL
+                        toastOverlay.show(L10n.saved(finalURL.lastPathComponent), style: .success, duration: 3)
+                        NSWorkspace.shared.activateFileViewerSelecting([finalURL])
+                    } catch {
+                        Logger.app.error("GIF 変換失敗: \(error)")
+                        toastOverlay.show("GIF 変換失敗: \(error.localizedDescription)", style: .error)
+                    }
+                }
+            }
             recordingCompletePanel.onClose = {}
             recordingCompletePanel.show(videoURL: url)
         }
