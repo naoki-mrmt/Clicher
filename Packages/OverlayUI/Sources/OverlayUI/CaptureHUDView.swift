@@ -122,8 +122,6 @@ public struct CaptureHUDView: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(!mode.isAvailable)
-        .opacity(mode.isAvailable ? 1 : 0.4)
     }
 
     // MARK: - Option Bar

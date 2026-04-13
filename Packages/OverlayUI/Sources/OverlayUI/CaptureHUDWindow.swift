@@ -153,11 +153,6 @@ public final class CaptureHUDWindow {
     // MARK: - Mode Selection
 
     private func handleModeSelection(_ mode: CaptureMode) {
-        guard mode.isAvailable else {
-            Logger.app.info("モード \(mode.label) は未実装です")
-            return
-        }
-
         appState.selectedCaptureMode = mode
         hide()
         onModeSelected?(mode)

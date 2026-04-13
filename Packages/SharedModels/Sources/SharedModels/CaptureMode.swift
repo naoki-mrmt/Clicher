@@ -3,7 +3,6 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
     case area = 1
     case window = 2
     case fullscreen = 3
-    case scroll = 4
     case ocr = 5
     case recording = 6
 
@@ -14,7 +13,6 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
         case .area: L10n.modeArea
         case .window: L10n.modeWindow
         case .fullscreen: L10n.modeFullscreen
-        case .scroll: L10n.modeScroll
         case .ocr: L10n.modeOCR
         case .recording: L10n.modeRecording
         }
@@ -25,7 +23,6 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
         case .area: "rectangle.dashed"
         case .window: "macwindow"
         case .fullscreen: "desktopcomputer"
-        case .scroll: "scroll"
         case .ocr: "doc.text.viewfinder"
         case .recording: "record.circle"
         }
@@ -33,17 +30,5 @@ public enum CaptureMode: Int, CaseIterable, Identifiable, Sendable {
 
     public var shortcutKey: String {
         "\(rawValue)"
-    }
-
-    /// 利用可能なモード
-    public var isAvailable: Bool {
-        switch self {
-        case .area, .window, .fullscreen, .ocr, .scroll, .recording: true
-        }
-    }
-
-    /// Phase 1 で利用可能なモードのみ
-    public static var availableModes: [CaptureMode] {
-        allCases.filter(\.isAvailable)
     }
 }

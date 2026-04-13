@@ -18,7 +18,6 @@ struct L10nTests {
     @Test("Capture strings are non-empty")
     func captureStringsNonEmpty() {
         #expect(!L10n.screenshot.isEmpty)
-        #expect(!L10n.scrollCapture.isEmpty)
         #expect(!L10n.screenRecording.isEmpty)
         #expect(!L10n.recognizeText.isEmpty)
     }
@@ -30,9 +29,6 @@ struct L10nTests {
 
         let autoClose = L10n.autoCloseSeconds(5)
         #expect(autoClose.contains("5"))
-
-        let frames = L10n.frameCount(3)
-        #expect(frames.contains("3"))
     }
 
     @Test("Permission strings are non-empty")

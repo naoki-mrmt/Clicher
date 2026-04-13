@@ -1,5 +1,6 @@
 import AppKit
 import OSLog
+import ScreenCaptureKit
 import Utilities
 
 /// エリア選択の結果
@@ -149,6 +150,11 @@ private final class AreaSelectionView: NSView {
     private var phase: Phase = .idle
     private var adjustDragStart: NSPoint?
 
+    /// 利用可能なウィンドウ一覧（ホバーハイライト用、非同期取得）
+    private var availableWindows: [SCWindow] = []
+    /// ホバー中のウィンドウ矩形（ビュー座標、idle 時のみ表示）
+    private var hoveredWindowRect: NSRect?
+
     /// 選択中の矩形
     private var selectionRect: NSRect? {
         guard let start = startPoint, let current = currentPoint else { return nil }
@@ -169,6 +175,20 @@ private final class AreaSelectionView: NSView {
             owner: self,
             userInfo: nil
         ))
+
+        // ウィンドウ一覧を非同期で取得（ホバーハイライト用）
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let bundleID = Bundle.main.bundleIdentifier
+            if let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) {
+                self.availableWindows = content.windows.filter { window in
+                    window.isOnScreen
+                        && window.frame.width > 10
+                        && window.frame.height > 10
+                        && window.owningApplication?.bundleIdentifier != bundleID
+                }
+            }
+        }
     }
 
     @available(*, unavailable)
@@ -182,10 +202,48 @@ private final class AreaSelectionView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         NSCursor.crosshair.set()
+        // idle 時のみウィンドウホバーハイライトを更新
+        if phase == .idle {
+            let viewPoint = convert(event.locationInWindow, from: nil)
+            let newRect = windowRectAtViewPoint(viewPoint)
+            if newRect != hoveredWindowRect {
+                hoveredWindowRect = newRect
+                needsDisplay = true
+            }
+        }
+    }
+
+    /// ビュー座標のポイントにあるウィンドウの矩形（ビュー座標、左下原点）を返す
+    private func windowRectAtViewPoint(_ point: NSPoint) -> NSRect? {
+        guard let win = window else { return nil }
+        // ビュー座標 → グローバル NSScreen 座標
+        let screenPoint = win.convertPoint(toScreen: point)
+
+        // NSScreen 座標（左下原点・グローバル）→ SCK 座標（左上原点・グローバル）に変換
+        // メインスクリーンの高さを基準にする
+        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        let sckPoint = CGPoint(x: screenPoint.x, y: mainHeight - screenPoint.y)
+
+        guard let scWindow = availableWindows.first(where: { $0.frame.contains(sckPoint) }) else {
+            return nil
+        }
+
+        // SCK frame（左上原点）→ NSScreen frame（左下原点）→ ビュー座標
+        let scFrame = scWindow.frame
+        let macScreenRect = NSRect(
+            x: scFrame.origin.x,
+            y: mainHeight - scFrame.origin.y - scFrame.height,
+            width: scFrame.width,
+            height: scFrame.height
+        )
+        let viewRect = win.convertFromScreen(macScreenRect)
+        return viewRect
     }
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        // ドラッグ開始時はホバーハイライトを消す
+        hoveredWindowRect = nil
 
         switch phase {
         case .idle:
@@ -302,6 +360,20 @@ private final class AreaSelectionView: NSView {
         // 背景を暗くする（Lark 風）
         NSColor.black.withAlphaComponent(0.4).setFill()
         bounds.fill()
+
+        // ホバー中のウィンドウをハイライト（idle 時のみ）
+        if phase == .idle, let hoverRect = hoveredWindowRect {
+            // ウィンドウ範囲を明るく
+            NSColor.clear.setFill()
+            hoverRect.fill(using: .copy)
+            NSColor.systemBlue.withAlphaComponent(0.1).setFill()
+            hoverRect.fill()
+            // 青枠
+            NSColor.systemBlue.withAlphaComponent(0.7).setStroke()
+            let hoverPath = NSBezierPath(rect: hoverRect.insetBy(dx: 1, dy: 1))
+            hoverPath.lineWidth = 2.0
+            hoverPath.stroke()
+        }
 
         guard let rect = selectionRect else { return }
 

@@ -35,7 +35,6 @@ public enum L10n {
 
     public static var capture: String { localized(ja: "キャプチャ", en: "Capture") }
     public static var screenshot: String { localized(ja: "スクリーンショット", en: "Screenshot") }
-    public static var scrollCapture: String { localized(ja: "スクロールキャプチャ", en: "Scroll Capture") }
     public static var screenRecording: String { localized(ja: "画面収録", en: "Screen Recording") }
 
     // MARK: - Capture Mode Labels
@@ -43,7 +42,6 @@ public enum L10n {
     public static var modeArea: String { localized(ja: "エリア", en: "Area") }
     public static var modeWindow: String { localized(ja: "ウィンドウ", en: "Window") }
     public static var modeFullscreen: String { localized(ja: "フルスクリーン", en: "Fullscreen") }
-    public static var modeScroll: String { localized(ja: "スクロール", en: "Scroll") }
     public static var modeOCR: String { "OCR" }
     public static var modeRecording: String { localized(ja: "録画", en: "Recording") }
     public static var recognizeText: String { localized(ja: "テキストを認識", en: "Recognize Text") }
@@ -150,12 +148,6 @@ public enum L10n {
     public static var microphone: String { localized(ja: "マイク", en: "Microphone") }
     public static var copyAll: String { localized(ja: "すべてコピー", en: "Copy All") }
 
-    // MARK: - Scroll Capture
-
-    public static func frameCount(_ n: Int) -> String {
-        localized(ja: "\(n) フレーム", en: "\(n) frames")
-    }
-    public static var captureFrame: String { localized(ja: "キャプチャ", en: "Capture") }
 
     // MARK: - Floating Screenshot
 
@@ -255,7 +247,6 @@ public enum L10n {
     // MARK: - Processing
 
     public static var processingOCR: String { localized(ja: "テキストを認識中...", en: "Recognizing text...") }
-    public static var processingStitch: String { localized(ja: "画像を結合中...", en: "Stitching images...") }
     public static var hotkeyRegistrationFailed: String {
         localized(
             ja: "ホットキーの登録に失敗しました。システム設定 → プライバシーとセキュリティ → アクセシビリティ を確認してください。",

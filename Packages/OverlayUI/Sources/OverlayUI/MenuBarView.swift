@@ -42,7 +42,7 @@ public struct MenuBarView: View {
 
             // キャプチャセクション
             Section(L10n.capture) {
-                ForEach(CaptureMode.availableModes) { mode in
+                ForEach(CaptureMode.allCases) { mode in
                     Button {
                         onCapture(mode)
                     } label: {
@@ -77,10 +77,15 @@ public struct MenuBarView: View {
             Divider()
 
             // 設定セクション
+            // SettingsLink を SimultaneousGesture でラップしてアプリを最前面化
+            // （メニューバーアプリは LSUIElement のため、Settings を開いただけでは前面に出ない）
             SettingsLink {
                 Label(L10n.settings, systemImage: "gear")
             }
             .keyboardShortcut(",")
+            .simultaneousGesture(TapGesture().onEnded {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            })
 
             Button(L10n.about) {
                 NSApplication.shared.activate(ignoringOtherApps: true)

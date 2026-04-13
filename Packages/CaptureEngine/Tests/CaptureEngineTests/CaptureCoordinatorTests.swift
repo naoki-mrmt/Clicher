@@ -14,7 +14,6 @@ struct CaptureCoordinatorTests {
         #expect(!coordinator.isRecording)
         #expect(coordinator.lastResult == nil)
         #expect(coordinator.countdownRemaining == 0)
-        #expect(coordinator.scrollSession == nil)
         #expect(coordinator.recordingSession == nil)
         #expect(coordinator.inlineAnnotate == nil)
     }

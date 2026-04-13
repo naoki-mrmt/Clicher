@@ -13,15 +13,14 @@ All-in-one screenshot tool for macOS. Capture, annotate, record, OCR — one app
 
 ## What it does
 
-- **Capture** — area select, window, fullscreen, scroll stitch, self-timer
-- **OCR** — Japanese/English text recognition, QR code scanning
-- **Record** — MP4 output, system audio + mic, GIF export
-- **Annotate** — arrow, rectangle, text, pixelate, highlight, pencil, crop, etc.
+- **Capture** — area select, window (click), fullscreen, self-timer
+- **OCR** — Japanese/English text recognition with copyable result panel, QR code scanning
+- **Record** — MP4 output, system audio + mic toggle, post-recording GIF export
+- **Annotate** — arrow, rectangle, ellipse, text, pixelate, highlight, pencil, crop, counter, etc.
 - **Background** — gradient / solid, padding, corner radius, shadow, SNS size presets
 - **Brand** — color / logo / font presets, auto-watermark, `.clipreset` sharing
 - **Floating** — pin screenshots to desktop, opacity control, click-through
-- **History** — thumbnail gallery, re-edit
-- **Video edit** — trim, quality change, GIF conversion
+- **Video edit** — trim, quality change
 - **Image tools** — combine (H/V), rotate, flip
 
 ## Install
@@ -47,14 +46,22 @@ xcodebuild -scheme Clicher -configuration Release build
 
 ## Usage
 
-Hit **`Cmd+Shift+A`** to open the HUD. Pick a mode with number keys.
+Hit **`Cmd+Shift+A`** to start capturing. The selection overlay supports two gestures:
+
+- **Drag** → area capture (or recording / OCR if you switched modes from the top tab bar)
+- **Click on a window** → captures that whole window (windows under the cursor highlight in blue)
+
+Switch modes using the tab bar shown at the top of the selection overlay:
 
 ```
-Cmd+Shift+A → [1] Area  [2] Window  [3] Fullscreen
-               [4] Scroll [5] OCR    [6] Record
+[ Screenshot ] [ Screen Recording ] [ Recognize Text ]
 ```
 
-After capture, an overlay pops up — save, copy, edit, or pin.
+After capture, an editing overlay pops up — annotate, save, copy, or pin.
+
+For OCR, a centered panel shows the recognized text with selection support and a "Copy All" button.
+
+For recording, a panel offers Save / Copy file path / GIF / Reveal in Finder after stopping.
 
 ### Permissions
 
@@ -72,8 +79,8 @@ SPM multi-module. Swift 6 strict concurrency.
 ```
 Packages/
 ├── SharedModels     # Type definitions
-├── Utilities        # Settings, permissions, export, history
-├── CaptureEngine    # Capture, OCR, recording, scroll
+├── Utilities        # Settings, permissions, export
+├── CaptureEngine    # Capture, OCR, recording
 ├── AnnotateEngine   # Drawing, background tool
 └── OverlayUI        # HUD, overlays, settings
 ```

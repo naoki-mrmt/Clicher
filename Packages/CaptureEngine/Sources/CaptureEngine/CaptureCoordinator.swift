@@ -49,9 +49,6 @@ public final class CaptureCoordinator {
     /// 録画中かどうか
     public private(set) var isRecording = false
 
-    /// スクロールキャプチャセッション
-    public private(set) var scrollSession: ScrollCaptureSession?
-
     /// 画面録画セッション
     public private(set) var recordingSession: ScreenRecordingSession?
 
@@ -125,8 +122,6 @@ public final class CaptureCoordinator {
                 await startFullscreenCapture()
             case .ocr:
                 await startOCRCapture()
-            case .scroll:
-                await startScrollCapture()
             case .recording:
                 // 録画はモードタブ経由で処理（startCaptureWithModeBar から呼ばれる）
                 // メニューから直接呼ばれた場合は startCaptureWithModeBar にフォールバック
@@ -152,7 +147,7 @@ public final class CaptureCoordinator {
         overlay.onModeChanged = { [weak self] mode in
             guard let self else { return }
             switch mode {
-            case .area, .recording, .ocr, .scroll:
+            case .area, .recording, .ocr:
                 // エリア選択が必要なモード → 状態更新のみ（エリア選択は継続）
                 modeBarSelectedMode = mode
             case .window, .fullscreen:
@@ -219,10 +214,6 @@ public final class CaptureCoordinator {
                 overlay.dismiss()
                 inlineAnnotate = nil
                 await startOCRAfterSelection(macRect: macRect, prefetchedContent: prefetchedContent)
-            case .scroll:
-                overlay.dismiss()
-                inlineAnnotate = nil
-                await startScrollAfterSelection(macRect: macRect)
             default:
                 overlay.dismiss()
                 inlineAnnotate = nil
@@ -686,97 +677,6 @@ public final class CaptureCoordinator {
         }
     }
 
-    // MARK: - Scroll Capture
-
-    /// スクロールキャプチャ操作 UI 表示のコールバック
-    /// App 層で ScrollCaptureControls を表示するために使う
-    public var onScrollCaptureStarted: (() -> Void)?
-
-    private func startScrollCapture() async {
-        isCapturing = true
-
-        let session = ScrollCaptureSession(captureService: captureService)
-        session.onComplete = { [weak self] image in
-            guard let self else { return }
-            let result = CaptureResult(image: image, mode: .scroll)
-            lastResult = result
-            onCaptureComplete?(result)
-            isCapturing = false
-        }
-        scrollSession = session
-        await session.start()
-
-        // 初回フレーム取得後に操作 UI を表示
-        if session.isCapturing {
-            onScrollCaptureStarted?()
-        }
-    }
-
-    /// モードタブ経由でエリア選択済みの場合のスクロールキャプチャ処理
-    private func startScrollAfterSelection(macRect: CGRect) async {
-        // オーバーレイ非表示がウィンドウサーバーに反映されるのを待つ
-        // （初回フレームにモードタブ等が写り込むのを防ぐ）
-        try? await Task.sleep(for: .milliseconds(16))
-
-        let session = ScrollCaptureSession(captureService: captureService)
-        session.onComplete = { [weak self] image in
-            guard let self else { return }
-            let result = CaptureResult(image: image, mode: .scroll)
-            lastResult = result
-            onCaptureComplete?(result)
-            isCapturing = false
-        }
-        scrollSession = session
-        await session.start(with: macRect)
-
-        // 初回フレーム取得後に操作 UI を表示
-        if session.isCapturing {
-            onScrollCaptureStarted?()
-        }
-    }
-
-    /// スクロールキャプチャの追加フレームを取得
-    public func captureScrollFrame() async {
-        await scrollSession?.captureFrame()
-    }
-
-    /// スクロールキャプチャを完了
-    public func finishScrollCapture() {
-        guard let session = scrollSession else { return }
-        let frames = session.frames
-        let overlap = 20
-        scrollSession = nil
-        session.cancel()
-
-        guard !frames.isEmpty else {
-            isCapturing = false
-            return
-        }
-
-        onProcessingStart?(L10n.processingStitch)
-        Task.detached { [frames, overlap] in
-            let result = ImageStitcher.stitchVertically(images: frames, overlap: overlap)
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                onProcessingEnd?()
-                if let image = result {
-                    let captureResult = CaptureResult(image: image, mode: .scroll)
-                    lastResult = captureResult
-                    onCaptureComplete?(captureResult)
-                }
-                isCapturing = false
-            }
-        }
-    }
-
-    /// スクロールキャプチャをキャンセル
-    public func cancelScrollCapture() {
-        scrollSession?.cancel()
-        scrollSession = nil
-        isCapturing = false
-    }
-
-    /// プレースホルダー画像（録画完了時の通知用）
     /// 録画を停止
     public func stopRecording() async {
         await recordingSession?.stop()
