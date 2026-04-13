@@ -532,10 +532,8 @@ public final class CaptureCoordinator {
         }
     }
 
-    /// クリック位置のウィンドウをキャプチャ（エリア選択でクリックした場合）
+    /// クリック位置のウィンドウをキャプチャし、インラインアノテーションを表示
     private func captureWindowAtPoint(_ clickPoint: CGPoint, prefetchedContent: SCShareableContent? = nil) async {
-        defer { isCapturing = false }
-
         do {
             let content: SCShareableContent
             if let prefetchedContent {
@@ -561,21 +559,50 @@ public final class CaptureCoordinator {
                 window.frame.contains(CGPoint(x: clickPoint.x, y: flippedY))
             }) else {
                 Logger.capture.info("クリック位置にウィンドウが見つかりません")
+                isCapturing = false
                 return
             }
 
             nonisolated(unsafe) let unsafeWindow = targetWindow
             let image = try await captureService.captureWindow(unsafeWindow)
-            let result = CaptureResult(
-                image: image,
-                mode: .window,
-                captureRect: targetWindow.frame
+
+            // SCK 座標（左上原点）→ macOS 座標（左下原点）に変換
+            let windowFrame = targetWindow.frame
+            let macRect = CGRect(
+                x: windowFrame.origin.x,
+                y: screenHeight - windowFrame.origin.y - windowFrame.height,
+                width: windowFrame.width,
+                height: windowFrame.height
             )
-            lastResult = result
-            onCaptureComplete?(result)
+
+            // インラインアノテーションを表示（エリア選択後と同じ編集UI）
+            let overlay = InlineAnnotateOverlay()
+            overlay.onComplete = { [weak self] editedImage in
+                guard let self else { return }
+                let result = CaptureResult(image: editedImage, mode: .window, captureRect: macRect)
+                lastResult = result
+                onCaptureComplete?(result)
+                inlineAnnotate = nil
+                isCapturing = false
+            }
+            overlay.onSave = { [weak self] editedImage in
+                guard let self else { return }
+                let result = CaptureResult(image: editedImage, mode: .window, captureRect: macRect)
+                lastResult = result
+                onCaptureComplete?(result)
+                inlineAnnotate = nil
+                isCapturing = false
+            }
+            overlay.onCancel = { [weak self] in
+                self?.inlineAnnotate = nil
+                self?.isCapturing = false
+            }
+            inlineAnnotate = overlay
+            overlay.show(image: image, screenRect: macRect)
         } catch {
             Logger.capture.error("ウィンドウキャプチャ失敗: \(error)")
             onError?("ウィンドウキャプチャ失敗: \(error.localizedDescription)")
+            isCapturing = false
         }
     }
 
