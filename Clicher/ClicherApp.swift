@@ -119,6 +119,31 @@ struct ClicherApp: App {
         // デフォルトブランドプリセットを Annotate に適用
         annotateWindow.defaultPreset = presetStore?.defaultPreset()
 
+        // スクロールキャプチャ操作 UI
+        var scrollControls: ScrollCaptureControls?
+        captureCoordinator.onScrollCaptureStarted = { macRect in
+            let controls = ScrollCaptureControls()
+            controls.onAutoScroll = {
+                captureCoordinator.startAutoScroll()
+            }
+            controls.onStopAutoScroll = {
+                captureCoordinator.stopAutoScroll()
+            }
+            controls.onFinish = {
+                captureCoordinator.finishScrollCapture()
+                scrollControls = nil
+            }
+            controls.onCancel = {
+                captureCoordinator.cancelScrollCapture()
+                scrollControls = nil
+            }
+            controls.show(screenRect: macRect)
+            scrollControls = controls
+        }
+        captureCoordinator.onScrollFrameUpdated = { count in
+            scrollControls?.setFrameCount(count)
+        }
+
         // エラー通知 → トースト表示
         captureCoordinator.onError = { message in
             toastOverlay.show(message, style: .error)

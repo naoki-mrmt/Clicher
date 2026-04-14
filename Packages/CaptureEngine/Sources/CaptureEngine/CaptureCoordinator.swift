@@ -52,6 +52,12 @@ public final class CaptureCoordinator {
     /// 画面録画セッション
     public private(set) var recordingSession: ScreenRecordingSession?
 
+    /// スクロールキャプチャセッション
+    public private(set) var scrollSession: ScrollCaptureSession?
+
+    /// スクロールキャプチャ開始コールバック（操作 UI 表示用、macRect を渡す）
+    public var onScrollCaptureStarted: ((CGRect) -> Void)?
+
     /// インラインアノテーションオーバーレイ
     public private(set) var inlineAnnotate: InlineAnnotateOverlay?
 
@@ -122,6 +128,11 @@ public final class CaptureCoordinator {
                 await startFullscreenCapture()
             case .ocr:
                 await startOCRCapture()
+            case .scroll:
+                // スクロールはモードタブ経由で処理
+                isCapturing = false
+                startCaptureWithModeBar()
+                return
             case .recording:
                 // 録画はモードタブ経由で処理（startCaptureWithModeBar から呼ばれる）
                 // メニューから直接呼ばれた場合は startCaptureWithModeBar にフォールバック
@@ -147,7 +158,7 @@ public final class CaptureCoordinator {
         overlay.onModeChanged = { [weak self] mode in
             guard let self else { return }
             switch mode {
-            case .area, .recording, .ocr:
+            case .area, .scroll, .recording, .ocr:
                 // エリア選択が必要なモード → 状態更新のみ（エリア選択は継続）
                 modeBarSelectedMode = mode
             case .window, .fullscreen:
@@ -210,6 +221,10 @@ public final class CaptureCoordinator {
                 await captureAreaAfterSelection(macRect: macRect, overlay: overlay, prefetchedContent: prefetchedContent)
             case .recording:
                 await startRecordingAfterSelection(macRect: macRect, overlay: overlay)
+            case .scroll:
+                overlay.dismiss()
+                inlineAnnotate = nil
+                await startScrollAfterSelection(macRect: macRect, prefetchedContent: prefetchedContent)
             case .ocr:
                 overlay.dismiss()
                 inlineAnnotate = nil
@@ -675,6 +690,69 @@ public final class CaptureCoordinator {
             Logger.capture.error("OCR キャプチャ失敗: \(error)")
             onError?("OCR キャプチャ失敗: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Scroll Capture
+
+    /// モードタブ経由でエリア選択済みの場合のスクロールキャプチャ処理
+    private func startScrollAfterSelection(macRect: CGRect, prefetchedContent: SCShareableContent? = nil) async {
+        // オーバーレイ非表示がウィンドウサーバーに反映されるのを待つ
+        try? await Task.sleep(for: .milliseconds(16))
+
+        let session = ScrollCaptureSession(captureService: captureService)
+        session.onComplete = { [weak self] image in
+            guard let self else { return }
+            let result = CaptureResult(image: image, mode: .scroll)
+            lastResult = result
+            onCaptureComplete?(result)
+            isCapturing = false
+        }
+        session.onError = { [weak self] message in
+            self?.onError?(message)
+            self?.isCapturing = false
+        }
+        session.onFrameCaptured = { [weak self] count in
+            self?.onScrollFrameUpdated?(count)
+        }
+        scrollSession = session
+
+        let content: SCShareableContent?
+        if let prefetchedContent {
+            content = prefetchedContent
+        } else {
+            content = try? await captureService.availableContent()
+        }
+        await session.start(macRect: macRect, content: content)
+
+        if session.isCapturing {
+            onScrollCaptureStarted?(macRect)
+        }
+    }
+
+    /// スクロールキャプチャのフレーム更新コールバック
+    public var onScrollFrameUpdated: ((Int) -> Void)?
+
+    /// 自動スクロールを開始
+    public func startAutoScroll() {
+        scrollSession?.startAutoScroll()
+    }
+
+    /// 自動スクロールを停止
+    public func stopAutoScroll() {
+        scrollSession?.stopAutoScroll()
+    }
+
+    /// スクロールキャプチャを完了
+    public func finishScrollCapture() {
+        scrollSession?.finish()
+        scrollSession = nil
+    }
+
+    /// スクロールキャプチャをキャンセル
+    public func cancelScrollCapture() {
+        scrollSession?.cancel()
+        scrollSession = nil
+        isCapturing = false
     }
 
     /// 録画を停止

@@ -36,14 +36,24 @@ public enum L10n {
     public static var capture: String { localized(ja: "キャプチャ", en: "Capture") }
     public static var screenshot: String { localized(ja: "スクリーンショット", en: "Screenshot") }
     public static var screenRecording: String { localized(ja: "画面収録", en: "Screen Recording") }
+    public static var scrollCapture: String { localized(ja: "スクロールキャプチャ", en: "Scroll Capture") }
 
     // MARK: - Capture Mode Labels
 
     public static var modeArea: String { localized(ja: "エリア", en: "Area") }
     public static var modeWindow: String { localized(ja: "ウィンドウ", en: "Window") }
     public static var modeFullscreen: String { localized(ja: "フルスクリーン", en: "Fullscreen") }
+    public static var modeScroll: String { localized(ja: "スクロール", en: "Scroll") }
     public static var modeOCR: String { "OCR" }
     public static var modeRecording: String { localized(ja: "録画", en: "Recording") }
+
+    // MARK: - Scroll Capture
+
+    public static var scrollSlowly: String { localized(ja: "ゆっくりスクロールしてください", en: "Scroll slowly to capture") }
+    public static var autoScroll: String { localized(ja: "自動スクロール", en: "Auto Scroll") }
+    public static var stopCapture: String { localized(ja: "キャプチャ停止", en: "Stop Capture") }
+    public static func frameCount(_ n: Int) -> String { localized(ja: "\(n) フレーム", en: "\(n) frames") }
+    public static var processingStitch: String { localized(ja: "画像を結合中...", en: "Stitching images...") }
     public static var recognizeText: String { localized(ja: "テキストを認識", en: "Recognize Text") }
 
     // MARK: - Quick Access
