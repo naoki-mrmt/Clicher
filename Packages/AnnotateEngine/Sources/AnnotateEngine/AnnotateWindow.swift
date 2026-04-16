@@ -42,19 +42,22 @@ public final class AnnotateWindow {
 
         let hostingView = NSHostingView(rootView: editorView)
 
-        // 画像サイズに基づいてウィンドウサイズを計算（最大画面の80%）
-        let imageSize = CGSize(
-            width: result.image.width,
-            height: result.image.height
+        // 画像サイズ（ポイント単位）に基づいてウィンドウサイズを計算（最大画面の80%）
+        let displayScale = ScreenUtilities.activeScaleFactor
+        let imagePointSize = CGSize(
+            width: CGFloat(result.image.width) / displayScale,
+            height: CGFloat(result.image.height) / displayScale
         )
         let screenSize = ScreenUtilities.activeVisibleFrame.size
         let maxWidth = screenSize.width * 0.8
         let maxHeight = screenSize.height * 0.8
 
-        let scale = min(maxWidth / imageSize.width, maxHeight / imageSize.height, 1.0)
+        let scale = min(maxWidth / imagePointSize.width, maxHeight / imagePointSize.height, 1.0)
+        let toolPaletteWidth: CGFloat = 44
+        let toolbarHeight: CGFloat = 44
         let windowSize = CGSize(
-            width: max(imageSize.width * scale + 44, 640), // +44 for tool palette
-            height: max(imageSize.height * scale + 44, 480) // +44 for toolbar
+            width: max(imagePointSize.width * scale + toolPaletteWidth, 640),
+            height: max(imagePointSize.height * scale + toolbarHeight, 480)
         )
 
         let window = NSWindow(

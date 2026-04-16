@@ -34,8 +34,14 @@ public struct AnnotateEditorView: View {
 
                 Divider()
 
-                // キャンバス
-                AnnotateCanvasRepresentable(document: document)
+                // キャンバス（画像がウィンドウより大きい場合スクロール可能）
+                ScrollView([.horizontal, .vertical]) {
+                    AnnotateCanvasRepresentable(document: document)
+                        .frame(
+                            width: CGFloat(document.originalImage.width) / ScreenUtilities.activeScaleFactor,
+                            height: CGFloat(document.originalImage.height) / ScreenUtilities.activeScaleFactor
+                        )
+                }
 
                 // 背景設定パネル（右）
                 if isBackgroundEnabled || document.currentTool == .crop {
