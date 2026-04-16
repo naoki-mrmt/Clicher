@@ -24,7 +24,7 @@ public final class AnnotateDocument {
     public var currentStyle = AnnotationStyle()
 
     /// 現在選択中のツール
-    public var currentTool: AnnotationToolType = .arrow
+    public var currentTool: AnnotationToolType = .rectangle
 
     /// カウンターの次の番号
     public var nextCounterNumber = 1

@@ -739,6 +739,7 @@ struct RecordingReadyToolbarView: View {
 /// プリセット色のスウォッチを横並びで表示し、カスタムカラーピッカーも開ける
 struct ColorSwatchPicker: View {
     @Binding var selection: Color
+    @State private var colorPanelTarget = ColorPanelTarget()
 
     /// プリセットカラー（Lark 風の配色 / システムカラーで統一）
     private static let presetColors: [Color] = [
@@ -759,10 +760,33 @@ struct ColorSwatchPicker: View {
             ForEach(Self.presetColors, id: \.self) { color in
                 swatch(color: color)
             }
-            // カスタムカラーピッカー
-            ColorPicker("", selection: $selection)
-                .labelsHidden()
-                .frame(width: 20, height: 20)
+            // カスタムカラーピッカー（スウォッチと統一した円形ボタン）
+            Button {
+                NSColorPanel.shared.setTarget(nil)
+                NSColorPanel.shared.setAction(nil)
+                NSColorPanel.shared.color = NSColor(selection)
+                NSColorPanel.shared.orderFront(nil)
+                // パネルの色変更を監視
+                NSColorPanel.shared.setTarget(colorPanelTarget)
+                NSColorPanel.shared.setAction(#selector(ColorPanelTarget.colorChanged(_:)))
+                colorPanelTarget.binding = $selection
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(
+                            AngularGradient(
+                                gradient: Gradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red]),
+                                center: .center
+                            )
+                        )
+                        .frame(width: 18, height: 18)
+                    Circle()
+                        .fill(selection)
+                        .frame(width: 10, height: 10)
+                }
+            }
+            .buttonStyle(.plain)
+            .help("Custom color")
         }
     }
 
@@ -822,6 +846,18 @@ struct ColorSwatchPicker: View {
             }
         }
         return ""
+    }
+}
+
+// MARK: - Color Panel Target
+
+/// NSColorPanel のアクションを SwiftUI Binding に橋渡しするヘルパー
+@MainActor
+final class ColorPanelTarget: NSObject {
+    var binding: Binding<Color>?
+
+    @objc func colorChanged(_ sender: NSColorPanel) {
+        binding?.wrappedValue = Color(nsColor: sender.color)
     }
 }
 
