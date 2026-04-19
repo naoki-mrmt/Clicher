@@ -113,6 +113,13 @@ struct OCRResultView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.iBeam.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
             }
             .frame(maxHeight: 320)
 
