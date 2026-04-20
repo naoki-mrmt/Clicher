@@ -91,18 +91,21 @@ public final class ScrollCaptureSession {
         isAutoScrolling = true
 
         autoScrollTask = Task { [weak self] in
+            // 専用 EventSource でユーザー入力と干渉しないようにする
+            let source = CGEventSource(stateID: .combinedSessionState)
+
             while !Task.isCancelled {
                 guard let self, self.isCapturing, self.isAutoScrolling else { break }
 
-                // マウスの位置をキャプチャエリアの中心に移動してスクロールイベントを送信
+                // キャプチャエリアの中心にスクロールイベントを送信
                 let centerX = self.macRect.midX
                 let mainHeight = NSScreen.screens.first?.frame.height ?? 0
                 let centerY = mainHeight - self.macRect.midY // CG座標に変換
                 let location = CGPoint(x: centerX, y: centerY)
 
-                if let scrollEvent = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0) {
+                if let scrollEvent = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0) {
                     scrollEvent.location = location
-                    scrollEvent.post(tap: .cgAnnotatedSessionEventTap)
+                    scrollEvent.post(tap: .cghidEventTap)
                 }
 
                 try? await Task.sleep(for: .milliseconds(80))

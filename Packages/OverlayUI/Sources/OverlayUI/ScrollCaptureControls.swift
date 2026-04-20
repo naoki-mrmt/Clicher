@@ -11,6 +11,12 @@ private final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
+/// `acceptsFirstMouse` を返す NSHostingView サブクラス。
+/// 非アクティブウィンドウでも最初のクリックでボタンが反応するようにする。
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 /// Lark 風スクロールキャプチャの操作パネル
 /// 「手動スクロール / 自動スクロール / 完了 / キャンセル」を表示
 @MainActor
@@ -52,7 +58,7 @@ public final class ScrollCaptureControls {
             }
         )
 
-        let hostingView = NSHostingView(rootView: view)
+        let hostingView = FirstMouseHostingView(rootView: view)
         let fittingSize = hostingView.fittingSize
         let panelSize = NSSize(width: max(fittingSize.width, 300), height: fittingSize.height)
         hostingView.setFrameSize(panelSize)
@@ -85,7 +91,9 @@ public final class ScrollCaptureControls {
         let x = max(visibleFrame.minX + 8, min(rawX, visibleFrame.maxX - panelSize.width - 8))
         p.setFrameOrigin(NSPoint(x: x, y: toolbarY))
 
-        p.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: false)
+        p.orderFrontRegardless()
+        p.makeKey()
         self.panel = p
 
         // ESC でキャンセル
