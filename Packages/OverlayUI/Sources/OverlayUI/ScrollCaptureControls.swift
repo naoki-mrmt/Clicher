@@ -3,11 +3,19 @@ import SwiftUI
 import SharedModels
 import Utilities
 
+// MARK: - Keyable Panel
+
+/// `canBecomeKey` を返す NSPanel サブクラス。
+/// `.nonactivatingPanel` でもボタンクリックを受け付けるために必要。
+private final class KeyablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 /// Lark 風スクロールキャプチャの操作パネル
 /// 「手動スクロール / 自動スクロール / 完了 / キャンセル」を表示
 @MainActor
 public final class ScrollCaptureControls {
-    private var panel: NSPanel?
+    private var panel: KeyablePanel?
     private var keyMonitor: Any?
 
     /// コールバック
@@ -49,7 +57,7 @@ public final class ScrollCaptureControls {
         let panelSize = NSSize(width: max(fittingSize.width, 300), height: fittingSize.height)
         hostingView.setFrameSize(panelSize)
 
-        let p = NSPanel(
+        let p = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
@@ -59,6 +67,8 @@ public final class ScrollCaptureControls {
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = true
+        p.ignoresMouseEvents = false
+        p.acceptsMouseMovedEvents = true
         p.contentView = hostingView
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
@@ -75,7 +85,7 @@ public final class ScrollCaptureControls {
         let x = max(visibleFrame.minX + 8, min(rawX, visibleFrame.maxX - panelSize.width - 8))
         p.setFrameOrigin(NSPoint(x: x, y: toolbarY))
 
-        p.orderFrontRegardless()
+        p.makeKeyAndOrderFront(nil)
         self.panel = p
 
         // ESC でキャンセル

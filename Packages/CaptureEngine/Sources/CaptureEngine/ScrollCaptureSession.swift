@@ -102,10 +102,10 @@ public final class ScrollCaptureSession {
 
                 if let scrollEvent = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0) {
                     scrollEvent.location = location
-                    scrollEvent.post(tap: .cghidEventTap)
+                    scrollEvent.post(tap: .cgAnnotatedSessionEventTap)
                 }
 
-                try? await Task.sleep(for: .milliseconds(50))
+                try? await Task.sleep(for: .milliseconds(80))
             }
         }
     }
