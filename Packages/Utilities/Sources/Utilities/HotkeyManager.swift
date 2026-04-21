@@ -19,11 +19,12 @@ public final class HotkeyManager: @unchecked Sendable {
 
     /// CGEventTap callback からスレッド安全にアクセスするための参照
     /// callback は C function pointer でキャプチャ不可のため static 経由
-    nonisolated(unsafe) private static var sharedEventTap: CFMachPort?
+    /// これらの値は MainActor 上でのみ書き込み、callback からは読み取りのみ
+    nonisolated(unsafe) static private(set) var sharedEventTap: CFMachPort?
 
     /// カスタムホットキー設定（static で callback からアクセス）
-    nonisolated(unsafe) private static var configuredKeyCode: Int64 = Int64(kVK_ANSI_A)
-    nonisolated(unsafe) private static var configuredModifiers: CGEventFlags = [.maskCommand, .maskShift]
+    nonisolated(unsafe) static private(set) var configuredKeyCode: Int64 = Int64(kVK_ANSI_A)
+    nonisolated(unsafe) static private(set) var configuredModifiers: CGEventFlags = [.maskCommand, .maskShift]
 
     private init() {}
 

@@ -91,7 +91,7 @@ public final class ScrollCaptureControls {
         let x = max(visibleFrame.minX + 8, min(rawX, visibleFrame.maxX - panelSize.width - 8))
         p.setFrameOrigin(NSPoint(x: x, y: toolbarY))
 
-        NSApp.activate(ignoringOtherApps: false)
+        NSApp.activate(ignoringOtherApps: true)
         p.orderFrontRegardless()
         p.makeKey()
         self.panel = p

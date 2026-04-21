@@ -318,13 +318,14 @@ public enum RecordingError: Error, LocalizedError {
 // MARK: - SCStreamOutput Handler
 
 private final class StreamOutputHandler: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
-    private let session: ScreenRecordingSession
+    private weak var session: ScreenRecordingSession?
 
     init(session: ScreenRecordingSession) {
         self.session = session
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard let session else { return }
         switch type {
         case .screen:
             session.handleVideoSampleBuffer(sampleBuffer)

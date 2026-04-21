@@ -206,7 +206,11 @@ public final class CaptureCoordinator {
             overlay.onSwitchToScroll = { [weak self] rect in
                 guard let self else { return }
                 inlineAnnotate = nil
-                Task { await self.startScrollAfterSelection(macRect: rect) }
+                Task {
+                    // dismiss 後のウィンドウサーバー反映を十分に待つ
+                    try? await Task.sleep(for: .milliseconds(100))
+                    await self.startScrollAfterSelection(macRect: rect)
+                }
             }
             overlay.onSwitchToRecord = { [weak self] rect in
                 guard let self else { return }

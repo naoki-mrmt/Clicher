@@ -211,6 +211,8 @@ struct ClicherApp: App {
                     } catch {
                         Logger.app.error("GIF 変換失敗: \(error)")
                         toastOverlay.show("GIF 変換失敗: \(error.localizedDescription)", style: .error)
+                        // 変換元の一時ファイルをクリーンアップ
+                        try? FileManager.default.removeItem(at: videoURL)
                     }
                 }
             }

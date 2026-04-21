@@ -91,11 +91,13 @@ public enum ImageExporter {
             1,
             nil
         ) else {
+            Logger.capture.error("CGImageDestination の作成に失敗: \(url.path)")
             return nil
         }
 
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else {
+            Logger.capture.error("画像の保存に失敗: \(url.path)")
             return nil
         }
 

@@ -179,10 +179,10 @@ public final class ScrollCaptureSession {
         // グローバルスクロールイベントを監視
         scrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self else { return }
-            Task { @MainActor [weak self] in
-                guard let self, self.isCapturing else { return }
-                // 縦スクロールのデルタを蓄積
-                self.accumulatedScrollDelta += abs(event.scrollingDeltaY)
+            let deltaY = abs(event.scrollingDeltaY)
+            Task { @MainActor in
+                guard self.isCapturing else { return }
+                self.accumulatedScrollDelta += deltaY
 
                 if self.accumulatedScrollDelta >= self.scrollThreshold {
                     self.accumulatedScrollDelta = 0
