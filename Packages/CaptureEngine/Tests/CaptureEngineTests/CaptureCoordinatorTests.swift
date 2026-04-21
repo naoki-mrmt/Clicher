@@ -21,7 +21,7 @@ struct CaptureCoordinatorTests {
     @Test("startCapture guards when already capturing")
     @MainActor func guardWhenCapturing() {
         let coordinator = CaptureCoordinator()
-        // Simulate capturing state by calling startCaptureWithModeBar
+        // Simulate capturing state by calling startCapture
         // Since we can't actually capture (no screen permission), verify the guard logic
         // by checking that double-calling doesn't crash
         coordinator.startCapture(mode: .fullscreen)

@@ -12,14 +12,13 @@ public final class InlineAnnotateOverlay {
     private var dimWindow: NSWindow?
     private var canvasWindow: NSWindow?
     private var toolbarWindow: NSPanel?
-    private var modeTabWindow: NSPanel?
     private var document: AnnotateDocument?
     private var canvasView: AnnotateCanvasView?
     nonisolated(unsafe) private var localKeyMonitor: Any?
     nonisolated(unsafe) private var globalKeyMonitor: Any?
 
-    /// モードタブバーの選択モード（Binding 用）
-    private var _selectedMode: CaptureMode = .area
+    /// 現在のキャプチャ範囲（モード切替時に渡す）
+    private(set) var currentMacRect: CGRect = .zero
 
     /// 完了時のコールバック（編集済み画像）
     public var onComplete: ((CGImage) -> Void)?
@@ -30,8 +29,17 @@ public final class InlineAnnotateOverlay {
     /// キャンセル時のコールバック
     public var onCancel: (() -> Void)?
 
-    /// モード変更時のコールバック
-    public var onModeChanged: ((CaptureMode) -> Void)?
+    /// モード切替: スクロールキャプチャ（macRect）
+    public var onSwitchToScroll: ((CGRect) -> Void)?
+
+    /// モード切替: 録画（macRect）
+    public var onSwitchToRecord: ((CGRect) -> Void)?
+
+    /// OCR 実行（元画像）
+    public var onRunOCR: ((CGImage) -> Void)?
+
+    /// ピン留め（編集済み画像）
+    public var onPinImage: ((CGImage) -> Void)?
 
     public init() {}
 
@@ -58,11 +66,11 @@ public final class InlineAnnotateOverlay {
         canvasWindow = nil
         toolbarWindow?.orderOut(nil)
         toolbarWindow = nil
-        modeTabWindow?.orderOut(nil)
-        modeTabWindow = nil
         document = nil
         canvasView = nil
         removeKeyMonitor()
+
+        self.currentMacRect = screenRect
 
         let doc = AnnotateDocument(image: image)
         self.document = doc
@@ -103,11 +111,7 @@ public final class InlineAnnotateOverlay {
         cw.makeFirstResponder(canvas)
         self.canvasWindow = cw
 
-        // 3. モードタブバーを非表示（エリア選択完了後はツールバーのみ）
-        modeTabWindow?.orderOut(nil)
-        modeTabWindow = nil
-
-        // 4. ツールバー（キャンバスの下 or 上に配置）
+        // 3. ツールバー（キャンバスの下 or 上に配置）
         showToolbar(canvasRect: screenRect, document: doc, canvasView: canvas)
 
         CATransaction.commit()
@@ -133,8 +137,6 @@ public final class InlineAnnotateOverlay {
         canvasWindow = nil
         toolbarWindow?.orderOut(nil)
         toolbarWindow = nil
-        modeTabWindow?.orderOut(nil)
-        modeTabWindow = nil
         document = nil
         canvasView = nil
     }
@@ -177,7 +179,11 @@ public final class InlineAnnotateOverlay {
             onRedo: { [weak document, weak canvasView] in document?.redo(); canvasView?.needsDisplay = true },
             onSave: { [weak self] in self?.handleSave() },
             onCancel: { [weak self] in self?.handleCancel() },
-            onDone: { [weak self] in self?.handleDone() }
+            onDone: { [weak self] in self?.handleDone() },
+            onOCR: { [weak self] in self?.handleRunOCR() },
+            onScroll: { [weak self] in self?.handleSwitchToScroll() },
+            onRecord: { [weak self] in self?.handleSwitchToRecord() },
+            onPin: { [weak self] in self?.handlePinImage() }
         )
 
         let hostingView = NSHostingView(rootView: toolbarView)
@@ -222,68 +228,9 @@ public final class InlineAnnotateOverlay {
         self.toolbarWindow = panel
     }
 
-    // MARK: - Mode Tab Bar
-
-    private func showModeTabBar(currentMode: CaptureMode) {
-        _selectedMode = currentMode
-        let tabView = ModeTabBarView(
-            initialMode: currentMode,
-            onModeSelected: { [weak self] mode in
-                self?._selectedMode = mode
-                self?.onModeChanged?(mode)
-            }
-        )
-
-        let hostingView = NSHostingView(rootView: tabView)
-        hostingView.setFrameSize(hostingView.fittingSize)
-
-        let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: hostingView.fittingSize),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.isMovableByWindowBackground = true
-        panel.contentView = hostingView
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-
-        // 画面上部中央
-        let screenFrame = ScreenUtilities.activeScreenFrame
-        let x = screenFrame.midX - panel.frame.width / 2
-        let y = screenFrame.maxY - panel.frame.height - 40
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
-
-        panel.orderFrontRegardless()
-        self.modeTabWindow = panel
-    }
-
-    /// モードタブバーのみ表示（エリア選択前の状態）
-    public func showModeTabOnly(currentMode: CaptureMode = .area) {
-        dismiss()
-        showDimWindow()
-        showModeTabBar(currentMode: currentMode)
-        setupKeyMonitor()
-    }
-
-    /// モードタブバーを非表示にする
-    public func hideModeTab() {
-        modeTabWindow?.orderOut(nil)
-        modeTabWindow = nil
-    }
-
-    /// 背景暗転を一時的に非表示にする（エリア選択中の二重暗転を防ぐ）
+    /// 背景暗転を一時的に非表示にする（キャプチャ前の二重暗転を防ぐ）
     public func hideDim() {
         dimWindow?.orderOut(nil)
-    }
-
-    /// 背景暗転を再表示する
-    public func showDim() {
-        dimWindow?.orderFrontRegardless()
     }
 
     // MARK: - Key Monitor
@@ -353,10 +300,6 @@ public final class InlineAnnotateOverlay {
         cw.contentView = highlightView
         cw.orderFrontRegardless()
         self.canvasWindow = cw
-
-        // モードタブを非表示
-        modeTabWindow?.orderOut(nil)
-        modeTabWindow = nil
 
         // 録画開始ツールバー
         let toolbarView = RecordingReadyToolbarView(
@@ -433,6 +376,36 @@ public final class InlineAnnotateOverlay {
         dismiss()
         Logger.capture.info("インラインアノテーションキャンセル")
     }
+
+    private func handleSwitchToScroll() {
+        let macRect = currentMacRect
+        let callback = onSwitchToScroll
+        dismiss()
+        callback?(macRect)
+    }
+
+    private func handleSwitchToRecord() {
+        let macRect = currentMacRect
+        showRecordingReady(
+            screenRect: macRect,
+            onStart: { [weak self] settings in
+                self?.onSwitchToRecord?(macRect)
+            },
+            onCancel: { [weak self] in
+                self?.handleCancel()
+            }
+        )
+    }
+
+    private func handleRunOCR() {
+        guard let image = document?.originalImage else { return }
+        onRunOCR?(image)
+    }
+
+    private func handlePinImage() {
+        guard let image = canvasView?.exportImage() else { return }
+        onPinImage?(image)
+    }
 }
 
 // MARK: - Dim Click View
@@ -472,6 +445,10 @@ struct InlineToolbarView: View {
     let onSave: () -> Void
     let onCancel: () -> Void
     let onDone: () -> Void
+    let onOCR: () -> Void
+    let onScroll: () -> Void
+    let onRecord: () -> Void
+    let onPin: () -> Void
 
     var body: some View {
         HStack(spacing: 4) {
@@ -517,7 +494,8 @@ struct InlineToolbarView: View {
             }
             .accessibilityLabel("Line width")
 
-            Spacer()
+            Divider()
+                .frame(height: 20)
 
             // Undo / Redo
             Button { onUndo() } label: {
@@ -535,6 +513,43 @@ struct InlineToolbarView: View {
             .buttonStyle(.plain)
             .disabled(!document.canRedo)
             .accessibilityLabel("Redo")
+
+            Divider()
+                .frame(height: 20)
+
+            // モード切替 & 機能ボタン
+            Button { onOCR() } label: {
+                Image(systemName: "text.viewfinder")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help(L10n.recognizeText)
+            .accessibilityLabel(L10n.recognizeText)
+
+            Button { onScroll() } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help(L10n.scrollCapture)
+            .accessibilityLabel(L10n.scrollCapture)
+
+            Button { onRecord() } label: {
+                Image(systemName: "record.circle")
+                    .foregroundStyle(.red.opacity(0.8))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help(L10n.screenRecording)
+            .accessibilityLabel(L10n.screenRecording)
+
+            Button { onPin() } label: {
+                Image(systemName: "pin")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Pin")
+            .accessibilityLabel("Pin")
 
             Divider()
                 .frame(height: 20)
@@ -560,7 +575,7 @@ struct InlineToolbarView: View {
 
             // 完了（コピー）
             Button { onDone() } label: {
-                Image(systemName: "checkmark")
+                Image(systemName: "doc.on.doc")
                     .foregroundStyle(.green)
                     .fontWeight(.bold)
                     .frame(width: 28, height: 28)
@@ -584,54 +599,6 @@ struct InlineToolbarView: View {
             get: { Color(nsColor: document.currentStyle.strokeColor) },
             set: { document.currentStyle.strokeColor = NSColor($0) }
         )
-    }
-}
-
-// MARK: - Mode Tab Bar View
-
-struct ModeTabBarView: View {
-    @State private var selectedMode: CaptureMode
-    let onModeSelected: (CaptureMode) -> Void
-
-    init(initialMode: CaptureMode, onModeSelected: @escaping (CaptureMode) -> Void) {
-        self._selectedMode = State(initialValue: initialMode)
-        self.onModeSelected = onModeSelected
-    }
-
-    private var modes: [(CaptureMode, String)] {
-        [
-            (.area, L10n.screenshot),
-            (.scroll, L10n.scrollCapture),
-            (.recording, L10n.screenRecording),
-            (.ocr, L10n.recognizeText),
-        ]
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(modes, id: \.0) { mode, label in
-                Button {
-                    selectedMode = mode
-                    onModeSelected(mode)
-                } label: {
-                    Text(label)
-                        .font(.system(size: 13, weight: mode == selectedMode ? .semibold : .regular))
-                        .foregroundStyle(mode == selectedMode ? .primary : .secondary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            mode == selectedMode
-                                ? AnyShapeStyle(.white.opacity(0.15))
-                                : AnyShapeStyle(.clear),
-                            in: RoundedRectangle(cornerRadius: 6)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary, lineWidth: 0.5))
     }
 }
 

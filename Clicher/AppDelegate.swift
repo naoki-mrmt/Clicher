@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 pm.requestScreenRecording()
                 return
             }
-            coordinator.startCaptureWithModeBar()
+            coordinator.startCapture(mode: .area)
         }
 
         // configure() 完了後にタップを再登録して最高優先度を確保（Lark等より優先）
