@@ -99,7 +99,11 @@ struct ClicherApp: App {
 
         // Quick Access Overlay のアクション
         quickAccessOverlay.onSave = { result in
-            if let url = ImageExporter.saveToFile(result.image, directory: appSettings.saveDirectory) {
+            if let url = ImageExporter.saveToFile(
+                result.image,
+                format: appSettings.imageFormat,
+                directory: appSettings.saveDirectory
+            ) {
                 toastOverlay.show(L10n.saved(url.lastPathComponent), style: .success, duration: 2)
             } else {
                 toastOverlay.show(L10n.saveFailed, style: .error)

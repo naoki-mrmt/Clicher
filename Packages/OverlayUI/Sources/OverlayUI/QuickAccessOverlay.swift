@@ -53,7 +53,7 @@ public final class QuickAccessOverlay {
                 if hovering {
                     self?.autoCloseTask?.cancel()
                     self?.autoCloseTask = nil
-                } else {
+                } else if autoCloseSeconds > 0 {
                     self?.scheduleAutoClose(seconds: autoCloseSeconds)
                 }
             }
@@ -75,7 +75,10 @@ public final class QuickAccessOverlay {
         panel.contentView = hostingView
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
+        // `.draggable` で画像を Finder/Slack 等にドラッグできるようにするため、
+        // パネル自体のドラッグ移動は無効化する（位置は設定で制御）
+        panel.isMovableByWindowBackground = false
+        panel.isMovable = false
 
         // 設定に応じた位置に配置
         positionPanel(panel)
@@ -106,16 +109,16 @@ public final class QuickAccessOverlay {
         autoCloseTask = nil
 
         guard let panel else { return }
+        // dismiss 中に再度 show() されると self.panel が新パネルに差し替わるため、
+        // 完了時にローカル参照と一致する場合のみ nil 化する
+        self.panel = nil
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         } completionHandler: {
-            Task { @MainActor [weak self] in
-                panel.orderOut(nil)
-                self?.panel = nil
-            }
+            panel.orderOut(nil)
         }
     }
 

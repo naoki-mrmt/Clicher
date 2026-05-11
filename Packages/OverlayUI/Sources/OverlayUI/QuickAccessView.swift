@@ -33,23 +33,15 @@ public struct QuickAccessView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // サムネイル
             thumbnail
-                .onHover {
-                    isHovering = $0
-                    onHoverChanged?($0)
-                }
 
-            // OCR テキストプレビュー
             if let ocrText = result.ocrText {
                 ocrPreview(text: ocrText)
             }
 
-            // アクションバー
-            if isHovering {
-                actionBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            actionBar
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
         }
         .frame(width: 240)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
@@ -57,6 +49,11 @@ public struct QuickAccessView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(.quaternary, lineWidth: 0.5)
         )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovering = hovering
+            onHoverChanged?(hovering)
+        }
         .animation(.easeInOut(duration: 0.15), value: isHovering)
         .draggable(Image(nsImage: result.nsImage))
     }
@@ -88,6 +85,7 @@ public struct QuickAccessView: View {
             .buttonStyle(.plain)
             .padding(4)
             .opacity(isHovering ? 1 : 0)
+            .allowsHitTesting(isHovering)
             .accessibilityLabel(L10n.cancel)
         }
     }
