@@ -81,7 +81,8 @@ public enum ImageStitcher {
         // 重複量を大→小で探索（大きい重複ほど優先）
         for overlap in stride(from: min(maxSearch, bottom.height - 1), through: 10, by: -1) {
             var matchPixels = 0
-            let compareRows = min(overlap, 5) // 先頭5行で高速チェック
+            // 30 行程度を比較することで、空白行・繰り返しヘッダによる誤マッチを抑える
+            let compareRows = min(overlap, 30)
 
             for row in 0..<compareRows {
                 let topRow = top.height - overlap + row

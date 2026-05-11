@@ -192,18 +192,23 @@ public final class InlineAnnotateOverlay {
         let toolbarSize = fittingSize
         hostingView.setFrameSize(toolbarSize)
 
-        // macOS 座標（左下原点）: origin.y が小さい = 画面下部
-        // 下にスペースがあれば下に、なければ上に配置
-        let spaceBelow = canvasRect.origin.y
+        // 配置: 下 → 上 → 範囲内下部 の順でフォールバック
+        // macOS 座標は左下原点（origin.y が小さい = 画面下部）
+        let screenFrame = ScreenUtilities.activeVisibleFrame
+        let spaceBelow = canvasRect.origin.y - screenFrame.minY
+        let spaceAbove = screenFrame.maxY - canvasRect.maxY
+
         let toolbarY: CGFloat
         if spaceBelow >= toolbarSize.height + 16 {
             toolbarY = canvasRect.origin.y - toolbarSize.height - 8
-        } else {
+        } else if spaceAbove >= toolbarSize.height + 16 {
             toolbarY = canvasRect.maxY + 8
+        } else {
+            // どちらにも入らない: 範囲内の下部に重ねる（オフスクリーン回避優先）
+            toolbarY = canvasRect.origin.y + 8
         }
 
         // キャンバスの中央に揃える + 画面内にクランプ
-        let screenFrame = ScreenUtilities.activeVisibleFrame
         let rawX = canvasRect.midX - toolbarSize.width / 2
         let toolbarX = max(screenFrame.minX + 8, min(rawX, screenFrame.maxX - toolbarSize.width - 8))
         let clampedY = max(screenFrame.minY + 8, min(toolbarY, screenFrame.maxY - toolbarSize.height - 8))
@@ -225,6 +230,8 @@ public final class InlineAnnotateOverlay {
         panel.contentView = hostingView
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
+        // 範囲内に重ねる場合に出力画像へ映り込まないよう除外（canvas は別ウィンドウなので影響なし）
+        panel.sharingType = .none
         panel.orderFrontRegardless()
         self.toolbarWindow = panel
     }
@@ -271,10 +278,25 @@ public final class InlineAnnotateOverlay {
         panel.contentView = hostingView
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
+        // 範囲内に重ねる場合に出力画像へ映り込まないよう除外
+        panel.sharingType = .none
 
-        let screenFrame = ScreenUtilities.activeScreenFrame
-        let x = screenFrame.midX - panel.frame.width / 2
-        let y = screenFrame.maxY - panel.frame.height - 40
+        // 配置: 範囲の上に画面上部の余白があればそこ、なければ範囲内の上部に重ねる
+        // ツールバーは範囲下部に置いているので、モードタブを上部に置くと棲み分けできる
+        let visibleFrame = ScreenUtilities.activeVisibleFrame
+        let tabBarHeight = panel.frame.height
+        let spaceAboveRect = visibleFrame.maxY - currentMacRect.maxY
+
+        let x = visibleFrame.midX - panel.frame.width / 2
+        let y: CGFloat
+        if spaceAboveRect >= tabBarHeight + 16 {
+            // 範囲の上に十分余白あり: 画面上部に配置
+            y = visibleFrame.maxY - tabBarHeight - 40
+        } else {
+            // 範囲が画面上部まで届いている: 範囲内の上部に重ねる
+            y = currentMacRect.maxY - tabBarHeight - 8
+        }
+
         panel.setFrameOrigin(NSPoint(x: x, y: y))
 
         panel.orderFrontRegardless()

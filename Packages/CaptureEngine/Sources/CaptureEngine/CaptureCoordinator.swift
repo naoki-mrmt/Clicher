@@ -466,13 +466,25 @@ public final class CaptureCoordinator {
             lastResult = result
             onCaptureComplete?(result)
             isCapturing = false
+            scrollSession = nil
         }
         session.onError = { [weak self] message in
-            self?.onError?(message)
-            self?.isCapturing = false
+            guard let self else { return }
+            onError?(message)
+            isCapturing = false
+            scrollSession = nil
         }
         session.onFrameCaptured = { [weak self] count in
             self?.onScrollFrameUpdated?(count)
+        }
+        session.onAutoScrollStopped = { [weak self] in
+            self?.onScrollAutoStopped?()
+        }
+        session.onStitchingStart = { [weak self] in
+            self?.onProcessingStart?(L10n.processingStitch)
+        }
+        session.onStitchingEnd = { [weak self] in
+            self?.onProcessingEnd?()
         }
         scrollSession = session
 
@@ -492,6 +504,9 @@ public final class CaptureCoordinator {
     /// スクロールキャプチャのフレーム更新コールバック
     public var onScrollFrameUpdated: ((Int) -> Void)?
 
+    /// 自動スクロールが内部都合で停止したときのコールバック（UI 同期用）
+    public var onScrollAutoStopped: (() -> Void)?
+
     /// 自動スクロールを開始
     public func startAutoScroll() {
         scrollSession?.startAutoScroll()
@@ -503,9 +518,10 @@ public final class CaptureCoordinator {
     }
 
     /// スクロールキャプチャを完了
+    /// スティッチは非同期で実行され、onCaptureComplete または onError で結果が通知される
     public func finishScrollCapture() {
         scrollSession?.finish()
-        scrollSession = nil
+        // scrollSession は onComplete / onError 内で nil 化される（スティッチが非同期のため）
     }
 
     /// スクロールキャプチャをキャンセル

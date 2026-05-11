@@ -143,6 +143,10 @@ struct ClicherApp: App {
         captureCoordinator.onScrollFrameUpdated = { count in
             scrollControls?.setFrameCount(count)
         }
+        captureCoordinator.onScrollAutoStopped = {
+            // 終端検出やフレーム上限でセッション側が止めた場合、UI のトグル状態を同期
+            scrollControls?.setAutoScrolling(false)
+        }
 
         // エラー通知 → トースト表示
         captureCoordinator.onError = { message in
