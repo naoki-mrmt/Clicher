@@ -1,6 +1,14 @@
 import SwiftUI
 import SharedModels
 
+/// QuickAccessOverlay のホバー状態（AppKit 側の NSTrackingArea から更新）
+@MainActor
+@Observable
+public final class QuickAccessHoverState {
+    public var isHovering: Bool = false
+    public init() {}
+}
+
 /// Quick Access Overlay の SwiftUI ビュー
 public struct QuickAccessView: View {
     public let result: CaptureResult
@@ -9,27 +17,27 @@ public struct QuickAccessView: View {
     public let onEdit: () -> Void
     public let onPin: () -> Void
     public let onClose: () -> Void
-    public let onHoverChanged: ((Bool) -> Void)?
-
-    @State private var isHovering = false
+    public let hoverState: QuickAccessHoverState
 
     public init(
         result: CaptureResult,
+        hoverState: QuickAccessHoverState,
         onSave: @escaping () -> Void,
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onPin: @escaping () -> Void = {},
-        onClose: @escaping () -> Void,
-        onHoverChanged: ((Bool) -> Void)? = nil
+        onClose: @escaping () -> Void
     ) {
         self.result = result
+        self.hoverState = hoverState
         self.onSave = onSave
         self.onCopy = onCopy
         self.onEdit = onEdit
         self.onPin = onPin
         self.onClose = onClose
-        self.onHoverChanged = onHoverChanged
     }
+
+    private var isHovering: Bool { hoverState.isHovering }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -49,11 +57,6 @@ public struct QuickAccessView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(.quaternary, lineWidth: 0.5)
         )
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovering = hovering
-            onHoverChanged?(hovering)
-        }
         .animation(.easeInOut(duration: 0.15), value: isHovering)
         .draggable(Image(nsImage: result.nsImage))
     }

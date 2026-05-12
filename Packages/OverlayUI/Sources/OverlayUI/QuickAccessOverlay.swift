@@ -27,9 +27,11 @@ public final class QuickAccessOverlay {
         dismiss()
 
         let autoCloseSeconds = TimeInterval(settings?.overlayAutoCloseSeconds ?? 5)
+        let hoverState = QuickAccessHoverState()
 
         let overlayView = QuickAccessView(
             result: result,
+            hoverState: hoverState,
             onSave: { [weak self] in
                 self?.onSave?(result)
                 self?.dismiss()
@@ -48,19 +50,20 @@ public final class QuickAccessOverlay {
             },
             onClose: { [weak self] in
                 self?.dismiss()
-            },
-            onHoverChanged: { [weak self] hovering in
-                if hovering {
-                    self?.autoCloseTask?.cancel()
-                    self?.autoCloseTask = nil
-                } else if autoCloseSeconds > 0 {
-                    self?.scheduleAutoClose(seconds: autoCloseSeconds)
-                }
             }
         )
 
-        let hostingView = NSHostingView(rootView: overlayView)
+        let hostingView = QuickAccessHostingView(rootView: overlayView)
         hostingView.setFrameSize(hostingView.fittingSize)
+        hostingView.onHoverChanged = { [weak self] hovering in
+            hoverState.isHovering = hovering
+            if hovering {
+                self?.autoCloseTask?.cancel()
+                self?.autoCloseTask = nil
+            } else if autoCloseSeconds > 0 {
+                self?.scheduleAutoClose(seconds: autoCloseSeconds)
+            }
+        }
 
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: hostingView.fittingSize),
@@ -160,5 +163,51 @@ public final class QuickAccessOverlay {
             guard !Task.isCancelled else { return }
             self?.dismiss()
         }
+    }
+}
+
+/// AppKit の NSTrackingArea でホバー状態を確実に検出する NSHostingView
+/// SwiftUI の `.onHover` は `.draggable` や内部ボタンと干渉してフリッカーを起こすため、
+/// AppKit レベルでホスト全体を追跡対象にする
+@MainActor
+private final class QuickAccessHostingView<Content: View>: NSHostingView<Content> {
+    var onHoverChanged: ((Bool) -> Void)?
+    private var trackingArea: NSTrackingArea?
+    private var isCurrentlyHovering = false
+
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard !isCurrentlyHovering else { return }
+        isCurrentlyHovering = true
+        onHoverChanged?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard isCurrentlyHovering else { return }
+        isCurrentlyHovering = false
+        onHoverChanged?(false)
     }
 }

@@ -35,6 +35,8 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     override public init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
+        // 元画像を等倍ピクセルで保持できるよう、レイヤーのバッキングを Retina 倍率に合わせる
+        layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 2.0
         let trackingArea = NSTrackingArea(
             rect: .zero,
             options: [.activeInKeyWindow, .mouseMoved, .inVisibleRect],
@@ -42,6 +44,20 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
             userInfo: nil
         )
         addTrackingArea(trackingArea)
+    }
+
+    override public func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let scale = window?.backingScaleFactor {
+            layer?.contentsScale = scale
+        }
+    }
+
+    override public func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        if let scale = window?.backingScaleFactor {
+            layer?.contentsScale = scale
+        }
     }
 
     @available(*, unavailable)
@@ -59,6 +75,7 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
 
         // 背景（元画像）— isFlipped=true の CGContext で CGImage を正しく描画するためフリップ
         ctx.saveGState()
+        ctx.interpolationQuality = .high
         ctx.translateBy(x: 0, y: size.height)
         ctx.scaleBy(x: 1, y: -1)
         ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
