@@ -80,17 +80,21 @@ public final class InlineAnnotateOverlay {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        // 1. 背景暗転（まだなければ作成、隠れていれば再表示）
+        // 1. 背景暗転（選択範囲だけくり抜く＝再ラスタライズなしで生のスクリーンを見せる）
         if dimWindow == nil {
             showDimWindow()
         } else {
             dimWindow?.orderFrontRegardless()
         }
+        applyDimHole(rect: screenRect)
 
         // 2. キャンバスウィンドウ（選択範囲にぴったり配置）
         let canvas = AnnotateCanvasView(
             frame: NSRect(origin: .zero, size: screenRect.size)
         )
+        // 元画像は描画しない: 下の dim にくり抜いた穴からライブのスクリーン画素が見えるため、
+        // 画像をブリットすると再ラスタライズで画質が落ちる
+        canvas.drawsBackgroundImage = false
         canvas.document = doc
         self.canvasView = canvas
 
@@ -172,6 +176,31 @@ public final class InlineAnnotateOverlay {
 
         dw.orderFrontRegardless()
         self.dimWindow = dw
+    }
+
+    /// dim ウィンドウの中央に穴を開けて、選択範囲だけ生のスクリーンが透けて見えるようにする
+    private func applyDimHole(rect: CGRect) {
+        guard let view = dimWindow?.contentView, let layer = view.layer else { return }
+        let screen = ScreenUtilities.activeScreen
+        let holeInLocal = CGRect(
+            x: rect.origin.x - screen.frame.origin.x,
+            y: rect.origin.y - screen.frame.origin.y,
+            width: rect.width,
+            height: rect.height
+        )
+        let mask = CAShapeLayer()
+        mask.frame = view.bounds
+        let path = CGMutablePath()
+        path.addRect(view.bounds)
+        path.addRect(holeInLocal)
+        mask.path = path
+        mask.fillRule = .evenOdd
+        layer.mask = mask
+    }
+
+    /// dim ウィンドウの穴を解除（録画モード等で穴なし dim に戻すとき用）
+    private func clearDimHole() {
+        dimWindow?.contentView?.layer?.mask = nil
     }
 
     // MARK: - Toolbar

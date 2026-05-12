@@ -30,6 +30,13 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     /// テキスト編集用フィールド
     private var textField: NSTextField?
 
+    /// 背景に元画像を描画するか
+    /// インラインオーバーレイモードでは false にして、下に見えるライブスクリーンをそのまま見せる
+    /// （再ラスタライズによる画質劣化を回避）
+    public var drawsBackgroundImage: Bool = true {
+        didSet { needsDisplay = true }
+    }
+
     override public var isFlipped: Bool { true }
 
     override public init(frame: NSRect) {
@@ -74,12 +81,15 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
         let size = bounds.size
 
         // 背景（元画像）— isFlipped=true の CGContext で CGImage を正しく描画するためフリップ
-        ctx.saveGState()
-        ctx.interpolationQuality = .high
-        ctx.translateBy(x: 0, y: size.height)
-        ctx.scaleBy(x: 1, y: -1)
-        ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
-        ctx.restoreGState()
+        // インラインオーバーレイモード（drawsBackgroundImage=false）では描画せず、下に見えるライブスクリーンを通す
+        if drawsBackgroundImage {
+            ctx.saveGState()
+            ctx.interpolationQuality = .high
+            ctx.translateBy(x: 0, y: size.height)
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.draw(document.originalImage, in: CGRect(origin: .zero, size: size))
+            ctx.restoreGState()
+        }
 
         // 確定済みアノテーション（isFlipped 座標系でそのまま描画）
         AnnotateRenderer.render(items: document.items, in: ctx, size: size, originalImage: document.originalImage)
