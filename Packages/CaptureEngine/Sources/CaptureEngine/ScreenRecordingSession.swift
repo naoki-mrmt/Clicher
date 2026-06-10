@@ -29,6 +29,10 @@ public final class ScreenRecordingSession {
     /// 録画エラーコールバック
     public var onError: ((String) -> Void)?
 
+    /// 録画が無効として静かに破棄されたときのコールバック（極短録画・フレーム未取得）
+    /// stop() は必ず onComplete / onError / onCancelled のいずれか 1 つを発火する
+    public var onCancelled: (() -> Void)?
+
     private var stream: SCStream?
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
@@ -40,6 +44,10 @@ public final class ScreenRecordingSession {
     private var startTime: Date?
     /// StreamOutputHandler の強参照を保持（SCStream は delegate を弱参照するため）
     private var streamOutputHandler: StreamOutputHandler?
+
+    /// サンプルバッファ処理用の直列キュー
+    /// 並列キューだと AVAssetWriterInput.append が順不同になりうるため直列にする
+    private let sampleHandlerQueue = DispatchQueue(label: "app.clicher.recording.sample-handler", qos: .userInteractive)
 
     /// バックグラウンドスレッドからの書き込みを保護するロック
     private let writeLock = NSLock()
@@ -75,7 +83,8 @@ public final class ScreenRecordingSession {
         // AVAssetWriter セットアップ
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
 
-        let scaleFactor = ScreenUtilities.activeScaleFactor
+        // 録画対象ディスプレイのスケールを使う（カーソル位置のスクリーンではなく）
+        let scaleFactor = ScreenUtilities.scaleFactor(forDisplayID: targetDisplay.displayID)
         // sourceRect 指定時はその範囲の解像度を使用（AVAssetWriter と SCStream の寸法を一致させる）
         // H.264 は偶数ピクセルが必要なので切り下げて揃える
         let width: Int
@@ -161,13 +170,28 @@ public final class ScreenRecordingSession {
         let outputHandler = StreamOutputHandler(session: self)
         self.streamOutputHandler = outputHandler
         let captureStream = SCStream(filter: filter, configuration: config, delegate: outputHandler)
-        try captureStream.addStreamOutput(outputHandler, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
 
-        if capturesSystemAudio {
-            try captureStream.addStreamOutput(outputHandler, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
+        do {
+            try captureStream.addStreamOutput(outputHandler, type: .screen, sampleHandlerQueue: sampleHandlerQueue)
+
+            if capturesSystemAudio {
+                try captureStream.addStreamOutput(outputHandler, type: .audio, sampleHandlerQueue: sampleHandlerQueue)
+            }
+
+            try await captureStream.startCapture()
+        } catch {
+            // 開始失敗時は writer・入力・一時ファイルを後始末してから投げる
+            setLockedInputs(video: nil, audio: nil, writer: nil)
+            writer.cancelWriting()
+            try? FileManager.default.removeItem(at: url)
+            assetWriter = nil
+            videoInput = nil
+            audioInput = nil
+            adaptor = nil
+            outputURL = nil
+            streamOutputHandler = nil
+            throw error
         }
-
-        try await captureStream.startCapture()
 
         self.stream = captureStream
         isRecording = true
@@ -224,30 +248,37 @@ public final class ScreenRecordingSession {
             await assetWriter?.finishWriting()
         }
 
-        // finishWriting 後のエラーチェック
+        // 以降の分岐は必ず onComplete / onError / onCancelled のいずれか 1 つを発火する
+        // （発火漏れがあるとコーディネーター側の isCapturing が戻らず全キャプチャが死ぬ）
         if let writer = assetWriter, writer.status == .failed {
             let message = writer.error?.localizedDescription ?? "不明"
             Logger.capture.error("録画ファイルの書き込み失敗: \(message)")
-            onError?("録画ファイルの書き込み失敗: \(message)")
             // 破損ファイルを削除
             if let url = outputURL {
                 try? FileManager.default.removeItem(at: url)
             }
+            onError?("録画ファイルの書き込み失敗: \(message)")
         } else if !hasFrames {
-            // フレーム未取得 → ファイル削除
+            // フレーム未取得 → ファイル削除して静かに終了
             Logger.capture.warning("録画フレームが取得できませんでした")
+            assetWriter?.cancelWriting()
             if let url = outputURL {
                 try? FileManager.default.removeItem(at: url)
             }
+            onCancelled?()
         } else if let url = outputURL {
             if elapsed < 0.5 {
-                // 極短録画は無効として扱う
+                // 極短録画は無効として扱い、静かに終了
                 Logger.capture.warning("録画時間が短すぎます: \(elapsed)秒")
                 try? FileManager.default.removeItem(at: url)
+                onCancelled?()
             } else {
                 onComplete?(url)
                 Logger.capture.info("画面録画を停止: \(url.lastPathComponent) (\(Int(elapsed))秒)")
             }
+        } else {
+            // outputURL 不在（通常起こらない）でも終了を必ず通知する
+            onCancelled?()
         }
 
         assetWriter = nil
@@ -269,11 +300,23 @@ public final class ScreenRecordingSession {
     }
 
     /// 最初のサンプル到着時に AVAssetWriter のセッションを開始する（writeLock 保持下で呼ぶこと）
+    /// writer が解除済み（stop() 後に遅延フレームが届いた場合）はフラグを立てない
+    /// （writer なしで sessionStarted = true になると finishWriting がクラッシュするため）
     private nonisolated func ensureSessionStarted(with sampleBuffer: CMSampleBuffer) {
-        guard !sessionStarted else { return }
+        guard !sessionStarted, let writer = lockedWriter else { return }
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        lockedWriter?.startSession(atSourceTime: timestamp)
+        writer.startSession(atSourceTime: timestamp)
         sessionStarted = true
+    }
+
+    /// SCStream が外部要因（ディスプレイ切断・権限剥奪等）で停止したときの処理
+    /// エラーを通知してから録画を終了する（stop() 内で onComplete / onCancelled も発火するため
+    /// コーディネーター側の状態は必ずリセットされる）
+    func streamDidStop(withError error: Error) {
+        guard isRecording else { return }
+        Logger.capture.error("SCStream が停止しました: \(error.localizedDescription)")
+        onError?("録画が中断されました: \(error.localizedDescription)")
+        Task { await self.stop() }
     }
 
     /// 映像サンプルバッファを受け取って書き込む（バックグラウンドスレッドから呼ばれる）
@@ -333,6 +376,14 @@ private final class StreamOutputHandler: NSObject, SCStreamOutput, SCStreamDeleg
             session.handleAudioSampleBuffer(sampleBuffer)
         @unknown default:
             break
+        }
+    }
+
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        guard let session else { return }
+        // ディスプレイ切断・権限剥奪等によるストリーム停止をセッションへ転送
+        Task { @MainActor in
+            session.streamDidStop(withError: error)
         }
     }
 }
