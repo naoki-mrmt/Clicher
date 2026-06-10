@@ -3,7 +3,7 @@ import Foundation
 
 /// 1つのアノテーション要素
 public final class AnnotationItem: Identifiable {
-    public let id = UUID()
+    public let id: UUID
     public let toolType: AnnotationToolType
     public var style: AnnotationStyle
     public var startPoint: CGPoint
@@ -18,6 +18,7 @@ public final class AnnotationItem: Identifiable {
     public var pixelateCacheKey: String?
 
     public init(
+        id: UUID = UUID(),
         toolType: AnnotationToolType,
         style: AnnotationStyle = AnnotationStyle(),
         startPoint: CGPoint = .zero,
@@ -26,6 +27,7 @@ public final class AnnotationItem: Identifiable {
         text: String = "",
         counterNumber: Int = 0
     ) {
+        self.id = id
         self.toolType = toolType
         self.style = style
         self.startPoint = startPoint
@@ -36,8 +38,10 @@ public final class AnnotationItem: Identifiable {
     }
 
     /// ディープコピーを作成（Undo スタック保存用）
+    /// `id` とモザイクキャッシュを保持するため、Undo/Redo 後も選択状態とキャッシュが失われない
     public func copy() -> AnnotationItem {
-        AnnotationItem(
+        let item = AnnotationItem(
+            id: id,
             toolType: toolType,
             style: style,
             startPoint: startPoint,
@@ -46,6 +50,9 @@ public final class AnnotationItem: Identifiable {
             text: text,
             counterNumber: counterNumber
         )
+        item.pixelateCache = pixelateCache
+        item.pixelateCacheKey = pixelateCacheKey
+        return item
     }
 
     /// バウンディングボックス

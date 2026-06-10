@@ -26,14 +26,8 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
     public func captureArea(macRect: CGRect, display: SCDisplay) async throws -> CGImage {
         // macOS スクリーン座標（左下原点）→ グローバル CG 座標（左上原点）
         // CGWindowListCreateImage はグローバル CG 座標を期待する
-        // 変換にはメインスクリーンの高さを使う（両座標系の原点がメインディスプレイにあるため）
-        let mainScreenHeight = NSScreen.screens.first?.frame.height ?? 0
-        let cgRect = CGRect(
-            x: macRect.origin.x,
-            y: mainScreenHeight - macRect.origin.y - macRect.height,
-            width: macRect.width,
-            height: macRect.height
-        )
+        // 変換にはプライマリスクリーンの高さを使う（両座標系の原点がメインディスプレイにあるため）
+        let cgRect = ScreenUtilities.flipFromGlobalTopLeft(macRect)
 
         Logger.capture.info("エリアキャプチャ: macRect=\(macRect.debugDescription) cgRect=\(cgRect.debugDescription)")
 
@@ -59,7 +53,10 @@ public final class ScreenCaptureService: ScreenCaptureServiceProtocol, Sendable 
         let config = SCStreamConfiguration()
 
         // Retina 対応: ポイントサイズにスケールファクターを乗算
-        let scaleFactor = ScreenUtilities.activeScaleFactor
+        // スケールは対象ウィンドウが乗っているスクリーンから取得する（カーソル位置のスクリーンではなく）
+        // SCWindow.frame は SCK 座標（左上原点）なので macOS 座標に反転してから検索
+        let windowMacFrame = ScreenUtilities.flipFromGlobalTopLeft(window.frame)
+        let scaleFactor = ScreenUtilities.screen(containing: windowMacFrame).backingScaleFactor
         config.width = Int(window.frame.width * scaleFactor)
         config.height = Int(window.frame.height * scaleFactor)
         config.showsCursor = false

@@ -5,7 +5,7 @@ set -euo pipefail
 # ビルド → Notarization → タグ → GitHub Release → Homebrew 更新
 #
 # 使い方: APP_PASSWORD=xxxx ./Scripts/create-release.sh <version>
-# 例: APP_PASSWORD=ahvw-xsom-hcul-jngu ./Scripts/create-release.sh 0.0.5
+# 例: APP_PASSWORD=xxxx-xxxx-xxxx-xxxx ./Scripts/create-release.sh 0.0.5
 
 VERSION="${1:?バージョンを指定してください (例: 0.0.5)}"
 DMG_PATH="build/Clicher-${VERSION}.dmg"

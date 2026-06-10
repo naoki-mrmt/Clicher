@@ -22,14 +22,8 @@ struct ClicherApp: App {
     @State private var isConfigured = false
 
     var body: some Scene {
-        // AppDelegate に configureIfNeeded トリガーを渡す（起動時に呼ばれる）
-        let _ = setupTriggerConfigure()
-
         // メニューバー（録画中はアイコン変更）
-        MenuBarExtra(
-            "Clicher",
-            systemImage: captureCoordinator.isRecording ? "record.circle.fill" : "camera.fill"
-        ) {
+        MenuBarExtra {
             MenuBarContent(
                 appState: appState,
                 permissionManager: permissionManager,
@@ -39,6 +33,15 @@ struct ClicherApp: App {
                 configureIfNeeded: configureIfNeeded,
                 isPermissionGuideVisible: $appState.isPermissionGuideVisible
             )
+        } label: {
+            // ラベルはステータスバー描画時（起動直後）に必ず表示されるため、
+            // AppDelegate への configureIfNeeded トリガー受け渡しはここで行う
+            // （メニューコンテンツの onAppear はメニューを開くまで発火しない）
+            Image(systemName: captureCoordinator.isRecording ? "record.circle.fill" : "camera.fill")
+                .accessibilityLabel("Clicher")
+                .onAppear {
+                    setupTriggerConfigure()
+                }
         }
 
         // 設定ウィンドウ
@@ -249,7 +252,7 @@ struct ClicherApp: App {
         Logger.app.info("Clicher 初期化完了")
     }
 
-    /// AppDelegate.triggerConfigure を設定する（body 評価時に1度だけ実行）
+    /// AppDelegate.triggerConfigure を設定する（メニューバーラベルの onAppear から1度だけ実行）
     private func setupTriggerConfigure() {
         if appDelegate.triggerConfigure == nil {
             appDelegate.triggerConfigure = { [self] in

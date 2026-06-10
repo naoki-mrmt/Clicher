@@ -60,7 +60,7 @@ public final class FloatingScreenshotManager {
 
 /// 個別のフローティングスクリーンショットウィンドウ
 @MainActor
-public final class FloatingScreenshotWindow: Identifiable {
+public final class FloatingScreenshotWindow: NSObject, Identifiable, NSWindowDelegate {
     public let id = UUID()
     private var panel: NSPanel?
     /// クリックスルー時に操作を受け付ける小さいグリップウィンドウ
@@ -72,10 +72,16 @@ public final class FloatingScreenshotWindow: Identifiable {
 
     init(result: CaptureResult, config: FloatingScreenshotConfig) {
         self.config = config
+        super.init()
 
+        // ピクセル → ポイント変換（キャプチャ範囲のポイントサイズから実際のスケールを導出。
+        // 範囲不明の場合はアクティブスクリーンのスケールにフォールバック）
+        let scale: CGFloat = result.captureRect.width > 0
+            ? CGFloat(result.image.width) / result.captureRect.width
+            : ScreenUtilities.activeScaleFactor
         let imageSize = CGSize(
-            width: CGFloat(result.image.width) / 2,
-            height: CGFloat(result.image.height) / 2
+            width: CGFloat(result.image.width) / scale,
+            height: CGFloat(result.image.height) / scale
         )
 
         let view = FloatingScreenshotView(
@@ -125,8 +131,22 @@ public final class FloatingScreenshotWindow: Identifiable {
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
         panel.alphaValue = config.opacity
+        // self.panel で強参照を保持するため、タイトルバーの閉じるボタンによる自動解放を防ぐ
+        panel.isReleasedWhenClosed = false
+        // タイトルバーから閉じられた場合もマネージャーから登録解除する（windowWillClose）
+        panel.delegate = self
 
         self.panel = panel
+    }
+
+    // MARK: - NSWindowDelegate
+
+    public func windowWillClose(_ notification: Notification) {
+        guard (notification.object as? NSPanel) === panel else { return }
+        gripPanel?.orderOut(nil)
+        gripPanel = nil
+        panel = nil
+        onClose?(id)
     }
 
     func show() {

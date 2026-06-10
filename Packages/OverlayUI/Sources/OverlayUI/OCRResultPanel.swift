@@ -34,7 +34,8 @@ public final class OCRResultPanel {
         )
         hostingView.setFrameSize(panelSize)
 
-        let p = NSPanel(
+        // ESC のローカルキーモニタが効くよう、キーウィンドウになれるパネルを使う
+        let p = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .closable],
             backing: .buffered,
@@ -51,6 +52,7 @@ public final class OCRResultPanel {
 
         p.center()
         p.orderFrontRegardless()
+        p.makeKey()
 
         // ESC で閉じる
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in

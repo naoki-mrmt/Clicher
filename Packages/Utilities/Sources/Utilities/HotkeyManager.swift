@@ -5,7 +5,7 @@ import OSLog
 /// グローバルホットキー管理
 /// `CGEvent.tapCreate` ベースでカスタマイズ可能なホットキーをシステム全体で監視する
 @MainActor
-public final class HotkeyManager: @unchecked Sendable {
+public final class HotkeyManager {
     public static let shared = HotkeyManager()
 
     /// ホットキーが押された時のコールバック
@@ -64,7 +64,13 @@ public final class HotkeyManager: @unchecked Sendable {
             let targetModifiers = HotkeyManager.configuredModifiers
             let targetKeyCode = HotkeyManager.configuredKeyCode
 
-            let modifiersMatch = flags.contains(targetModifiers)
+            // 修飾キーは完全一致で判定する（⌘⇧⌥A が ⌘⇧A を誤発火させないため）
+            // ⌘/⇧/⌥/⌃ のビットのみ抽出して比較し、CapsLock や Fn 等は無視する
+            let relevantMask: UInt64 = CGEventFlags.maskCommand.rawValue
+                | CGEventFlags.maskShift.rawValue
+                | CGEventFlags.maskAlternate.rawValue
+                | CGEventFlags.maskControl.rawValue
+            let modifiersMatch = (flags.rawValue & relevantMask) == (targetModifiers.rawValue & relevantMask)
             let keyCodeMatch = keyCode == targetKeyCode
 
             if modifiersMatch && keyCodeMatch {

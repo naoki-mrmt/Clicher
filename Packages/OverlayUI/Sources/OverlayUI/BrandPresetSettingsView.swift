@@ -1,6 +1,13 @@
 import SwiftUI
 import SharedModels
+import UniformTypeIdentifiers
 import Utilities
+
+extension UTType {
+    /// `.clipreset`（ブランドプリセット共有形式、中身は JSON）
+    /// 拡張子ベースの動的型なので Info.plist 宣言なしでもパネルのフィルタに使える
+    static let clipreset = UTType(filenameExtension: "clipreset", conformingTo: .json) ?? .json
+}
 
 /// ブランドプリセット管理画面（設定タブ）
 public struct BrandPresetSettingsView: View {
@@ -253,7 +260,7 @@ public struct BrandPresetSettingsView: View {
 
     private func importPreset() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = [.clipreset, .json]
         panel.allowsMultipleSelection = false
 
         panel.begin { response in
@@ -272,7 +279,7 @@ public struct BrandPresetSettingsView: View {
 
     private func exportPreset(_ preset: BrandPreset) {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = [.clipreset]
         panel.nameFieldStringValue = "\(preset.name).clipreset"
 
         panel.begin { response in
