@@ -8,8 +8,8 @@ import OverlayUI
 
 /// AppKit 統合用デリゲート
 /// グローバルホットキーの登録とキャプチャの管理を担当
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private(set) var hudWindow: CaptureHUDWindow?
     private var appState: AppState?
     private var captureCoordinator: CaptureCoordinator?
     private var permissionManager: PermissionManager?
@@ -39,10 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyCode: appSettings.hotkeyKeyCode,
             modifiers: appSettings.hotkeyModifiers
         )
-
-        let hud = CaptureHUDWindow(appState: appState)
-        hud.onModeSelected = onCapture
-        self.hudWindow = hud
 
         // ⌘⇧A → 録画中なら停止、それ以外なら Lark 風キャプチャ
         HotkeyManager.shared.onHotkeyPressed = { @MainActor [weak self] in
@@ -76,12 +72,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // configureIfNeeded() を起動時に呼ぶ
         // MenuBarExtra の onAppear は遅延発火するため、ここから直接トリガー
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(0.3))
             self?.triggerConfigure?()
         }
 
         // 権限不足なら権限ガイドウィンドウを表示
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.0))
             guard let self, let pm = self.permissionManager else { return }
             pm.checkAll()
             if !pm.hasScreenRecordingPermission || !pm.hasAccessibilityPermission {
@@ -120,6 +118,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
         window.title = "Clicher"
+        // permissionGuideWindow で強参照を保持するため、close() 時の自動解放を防ぐ
+        window.isReleasedWhenClosed = false
         window.contentView = hostingView
         window.center()
         window.delegate = self

@@ -9,7 +9,6 @@ public struct PermissionGuideView: View {
     public var onDismiss: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var refreshTimer: Timer?
 
     public init(
         permissionManager: PermissionManager,
@@ -70,18 +69,14 @@ public struct PermissionGuideView: View {
         }
         .padding(32)
         .frame(width: 420, height: 480)
-        .onAppear {
-            permissionManager.checkAll()
+        .task {
             // 定期的に権限状態を再チェック（Grant後にシステム設定から戻った時用）
-            refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                Task { @MainActor in
-                    permissionManager.checkAll()
-                }
+            // ビューが消えると .task が自動キャンセルされるため、明示的な後始末は不要
+            permissionManager.checkAll()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                permissionManager.checkAll()
             }
-        }
-        .onDisappear {
-            refreshTimer?.invalidate()
-            refreshTimer = nil
         }
     }
 

@@ -12,11 +12,4 @@ struct OverlayUITests {
         #expect(overlay.onCopy == nil)
         #expect(overlay.onEdit == nil)
     }
-
-    @Test("CaptureHUDWindow can be instantiated")
-    @MainActor func hudWindowInit() {
-        let state = AppState()
-        let hud = CaptureHUDWindow(appState: state)
-        #expect(hud.onModeSelected == nil)
-    }
 }

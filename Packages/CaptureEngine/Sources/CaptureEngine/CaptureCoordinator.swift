@@ -282,9 +282,9 @@ public final class CaptureCoordinator {
             }
 
             let bundleID = Bundle.main.bundleIdentifier
-            let screenHeight = ScreenUtilities.activeScreenFrame.height
             // macOS 座標（左下原点）→ SCK 座標（左上原点）
-            let flippedY = screenHeight - clickPoint.y
+            // 反転にはプライマリスクリーンの高さを使う（マルチディスプレイ対応）
+            let flippedY = ScreenUtilities.flipGlobalY(clickPoint.y)
 
             // クリック位置を含むウィンドウを検索（最前面から順に）
             let validWindows = content.windows.filter { window in
@@ -306,13 +306,7 @@ public final class CaptureCoordinator {
             let image = try await captureService.captureWindow(unsafeWindow)
 
             // SCK 座標（左上原点）→ macOS 座標（左下原点）に変換
-            let windowFrame = targetWindow.frame
-            let macRect = CGRect(
-                x: windowFrame.origin.x,
-                y: screenHeight - windowFrame.origin.y - windowFrame.height,
-                width: windowFrame.width,
-                height: windowFrame.height
-            )
+            let macRect = ScreenUtilities.flipFromGlobalTopLeft(targetWindow.frame)
 
             // インラインアノテーションを表示（エリア選択後と同じ編集UI）
             let overlay = InlineAnnotateOverlay()
@@ -422,13 +416,17 @@ public final class CaptureCoordinator {
         let session = ScreenRecordingSession()
         session.onComplete = { [weak self] url in
             guard let self else { return }
-            isRecording = false
-            isCapturing = false
-            onRecordingStopped?()
+            finishRecordingState()
             onRecordingComplete?(url)
         }
+        session.onCancelled = { [weak self] in
+            // 極短録画・フレーム未取得は静かに状態だけリセット
+            self?.finishRecordingState()
+        }
         session.onError = { [weak self] message in
-            self?.onError?(message)
+            guard let self else { return }
+            onError?(message)
+            finishRecordingState()
         }
         recordingSession = session
 
@@ -468,11 +466,15 @@ public final class CaptureCoordinator {
             isCapturing = false
             scrollSession = nil
         }
-        session.onError = { [weak self] message in
+        session.onError = { [weak self, weak session] message in
             guard let self else { return }
             onError?(message)
-            isCapturing = false
-            scrollSession = nil
+            // キャプチャ継続中の非致命エラー（フレーム取得失敗・上限到達の通知等）では
+            // セッションを破棄しない。終了を伴うエラーのみ状態をリセットする
+            if session?.isCapturing != true {
+                isCapturing = false
+                scrollSession = nil
+            }
         }
         session.onFrameCaptured = { [weak self] count in
             self?.onScrollFrameUpdated?(count)
@@ -534,8 +536,19 @@ public final class CaptureCoordinator {
     /// 録画を停止
     public func stopRecording() async {
         await recordingSession?.stop()
-        // onRecordingStopped は session.onComplete 経由で発火済み
+        // 通常は session のコールバック（onComplete / onCancelled / onError）経由で
+        // リセット済みだが、どの経路でも確実に状態を戻すため冪等に再実行する
+        finishRecordingState()
+    }
+
+    /// 録画終了時の状態リセット（すべての終了経路から呼ばれる・冪等）
+    private func finishRecordingState() {
         recordingSession = nil
+        isCapturing = false
+        if isRecording {
+            isRecording = false
+            onRecordingStopped?()
+        }
     }
 
     // MARK: - Display Utilities

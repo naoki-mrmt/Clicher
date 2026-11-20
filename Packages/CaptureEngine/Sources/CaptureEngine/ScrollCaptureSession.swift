@@ -141,8 +141,7 @@ public final class ScrollCaptureSession {
                 // .cgSessionEventTap を使うことで HID レベルでのカーソルワープを回避
                 // （HID で post すると event.location 指定がカーソルを動かしてしまう）
                 let centerX = self.macRect.midX
-                let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-                let centerY = mainHeight - self.macRect.midY // CG座標に変換
+                let centerY = ScreenUtilities.flipGlobalY(self.macRect.midY) // CG座標に変換
                 let location = CGPoint(x: centerX, y: centerY)
 
                 if let scrollEvent = CGEvent(

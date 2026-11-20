@@ -42,6 +42,34 @@ struct AnnotationItemTests {
         #expect(item.boundingRect == .zero)
     }
 
+    @Test("copy preserves id and values")
+    func copyPreservesIdentity() {
+        let item = AnnotationItem(
+            toolType: .rectangle,
+            startPoint: CGPoint(x: 10, y: 20),
+            endPoint: CGPoint(x: 50, y: 80),
+            text: "hello",
+            counterNumber: 3
+        )
+        let copied = item.copy()
+        #expect(copied !== item)
+        #expect(copied.id == item.id)
+        #expect(copied.toolType == item.toolType)
+        #expect(copied.startPoint == item.startPoint)
+        #expect(copied.endPoint == item.endPoint)
+        #expect(copied.text == item.text)
+        #expect(copied.counterNumber == item.counterNumber)
+    }
+
+    @Test("copy is independent of original")
+    func copyIsDeep() {
+        let item = AnnotationItem(toolType: .pencil, points: [CGPoint(x: 1, y: 1)])
+        let copied = item.copy()
+        copied.points.append(CGPoint(x: 2, y: 2))
+        #expect(item.points.count == 1)
+        #expect(copied.points.count == 2)
+    }
+
     @Test("default style values")
     func defaultStyle() {
         let style = AnnotationStyle()

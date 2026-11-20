@@ -88,6 +88,13 @@ public struct VideoEditorView: View {
                             .monospacedDigit()
                             .frame(width: 50)
                     }
+                    // 開始 > 終了 の逆転範囲を VideoEditor.trim に渡さないよう追従させる
+                    .onChange(of: trimStart) { _, newValue in
+                        if newValue > trimEnd { trimEnd = newValue }
+                    }
+                    .onChange(of: trimEnd) { _, newValue in
+                        if newValue < trimStart { trimStart = newValue }
+                    }
 
                     Text(L10n.selectedRange(formatTime(max(0, trimEnd - trimStart))))
                         .font(.caption)

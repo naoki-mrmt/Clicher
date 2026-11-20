@@ -35,6 +35,8 @@ public final class PreviewWindow: NSObject, NSWindowDelegate {
             defer: false
         )
         window.title = L10n.preview
+        // activeWindow で強参照を保持するため、close() 時の自動解放（over-release）を防ぐ
+        window.isReleasedWhenClosed = false
         window.contentView = hostingView
         window.center()
         window.delegate = delegate

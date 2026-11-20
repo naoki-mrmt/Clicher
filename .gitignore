@@ -20,6 +20,8 @@ xcuserdata/
 # Build
 .build/
 Build/
+build/
+*.xcarchive
 *.o
 *.swp
 *.dSYM.zip

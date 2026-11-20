@@ -28,6 +28,9 @@ public final class WindowSelectionOverlay {
         }
 
         return await withCheckedContinuation { continuation in
+            // 進行中の選択があれば先にキャンセルする（continuation の宙吊り防止）
+            cancelActive()
+
             var resumed = false
             let overlay = WindowSelectionWindow(windows: validWindows) { window in
                 guard !resumed else { return }
@@ -39,6 +42,15 @@ public final class WindowSelectionOverlay {
             activeWindow = overlay
             overlay.show()
         }
+    }
+
+    /// 進行中のウィンドウ選択をキャンセルする
+    /// 選択待ちの continuation を nil で resume し、オーバーレイウィンドウを閉じる
+    @MainActor
+    public static func cancelActive() {
+        guard let window = activeWindow else { return }
+        activeWindow = nil
+        window.cancelSelection()
     }
 }
 
@@ -105,30 +117,20 @@ private final class WindowSelectionWindow: NSWindow {
 
     /// 指定座標にあるウィンドウを検索
     private func windowAtPoint(_ point: NSPoint) -> SCWindow? {
-        let screenHeight = ScreenUtilities.activeScreenFrame.height
-
         // macOS座標系(左下原点) → ScreenCaptureKit座標系(左上原点)
-        let flippedY = screenHeight - point.y
+        // 反転にはプライマリスクリーンの高さを使う（マルチディスプレイ対応）
+        let flippedY = ScreenUtilities.flipGlobalY(point.y)
 
         return validWindows.first { window in
-            let frame = window.frame
-            return frame.contains(CGPoint(x: point.x, y: flippedY))
+            window.frame.contains(CGPoint(x: point.x, y: flippedY))
         }
     }
 
     /// ホバー中のウィンドウをハイライト
     private func updateHighlight(at point: NSPoint) {
-        let screenHeight = ScreenUtilities.activeScreenFrame.height
-
         if let window = windowAtPoint(point) {
-            let frame = window.frame
             // ScreenCaptureKit座標 → macOS座標に変換
-            let macFrame = NSRect(
-                x: frame.origin.x,
-                y: screenHeight - frame.origin.y - frame.height,
-                width: frame.width,
-                height: frame.height
-            )
+            let macFrame = ScreenUtilities.flipFromGlobalTopLeft(window.frame)
             showHighlight(frame: macFrame)
         } else {
             hideHighlight()
@@ -148,6 +150,8 @@ private final class WindowSelectionWindow: NSWindow {
             hw.backgroundColor = .clear
             hw.hasShadow = false
             hw.ignoresMouseEvents = true
+            // ARC 管理下で close() による過剰解放を防ぐ
+            hw.isReleasedWhenClosed = false
 
             // contentView はウィンドウローカル座標（origin は .zero）
             let view = HighlightView(frame: NSRect(origin: .zero, size: frame.size))
@@ -162,9 +166,15 @@ private final class WindowSelectionWindow: NSWindow {
     }
 
     private func hideHighlight() {
+        // close() は isReleasedWhenClosed=true（デフォルト）だと強参照保持中の過剰解放になるため
+        // orderOut + nil 化で解放する
         highlightWindow?.orderOut(nil)
-        highlightWindow?.close()
         highlightWindow = nil
+    }
+
+    /// 外部からのキャンセル（選択を放棄する場合）
+    func cancelSelection() {
+        finishSelection(nil)
     }
 
     private func finishSelection(_ window: SCWindow?) {

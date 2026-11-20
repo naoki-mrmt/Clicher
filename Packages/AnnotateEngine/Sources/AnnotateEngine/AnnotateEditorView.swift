@@ -5,19 +5,13 @@ import Utilities
 /// Annotate エディタの SwiftUI ラッパー
 public struct AnnotateEditorView: View {
     public let document: AnnotateDocument
-    public var onExport: ((CGImage) -> Void)?
     public var onDismiss: (() -> Void)?
-
-    @State private var backgroundConfig = BackgroundConfig()
-    @State private var isBackgroundEnabled = false
 
     public init(
         document: AnnotateDocument,
-        onExport: ((CGImage) -> Void)? = nil,
         onDismiss: (() -> Void)? = nil
     ) {
         self.document = document
-        self.onExport = onExport
         self.onDismiss = onDismiss
     }
 
@@ -38,18 +32,18 @@ public struct AnnotateEditorView: View {
                 ScrollView([.horizontal, .vertical]) {
                     AnnotateCanvasRepresentable(document: document)
                         .frame(
-                            width: CGFloat(document.originalImage.width) / ScreenUtilities.activeScaleFactor,
-                            height: CGFloat(document.originalImage.height) / ScreenUtilities.activeScaleFactor
+                            width: CGFloat(document.originalImage.width) / document.displayScale,
+                            height: CGFloat(document.originalImage.height) / document.displayScale
                         )
                 }
 
-                // 背景設定パネル（右）
-                if isBackgroundEnabled || document.currentTool == .crop {
+                // 背景設定パネル（右）— 設定はドキュメントに保持され、エクスポート時に適用される
+                if document.isBackgroundEnabled || document.currentTool == .crop {
                     Divider()
                     ScrollView {
                         BackgroundSettingsView(
-                            config: $backgroundConfig,
-                            isEnabled: $isBackgroundEnabled
+                            config: Bindable(document).backgroundConfig,
+                            isEnabled: Bindable(document).isBackgroundEnabled
                         )
                     }
                 }
@@ -111,7 +105,7 @@ public struct AnnotateEditorView: View {
                 .frame(height: 20)
 
             // 背景設定トグル
-            Toggle(isOn: $isBackgroundEnabled) {
+            Toggle(isOn: Bindable(document).isBackgroundEnabled) {
                 Image(systemName: "photo.artframe")
             }
             .toggleStyle(.button)
@@ -182,7 +176,7 @@ public struct AnnotateCanvasRepresentable: NSViewRepresentable {
 
     public func makeNSView(context: Context) -> AnnotateCanvasView {
         // ピクセルサイズ → ポイントサイズに変換（Retina 対応）
-        let scale = ScreenUtilities.activeScaleFactor
+        let scale = document.displayScale
         let canvas = AnnotateCanvasView(
             frame: NSRect(
                 origin: .zero,

@@ -60,7 +60,7 @@ hdiutil create \
 
 # 6. Notarization
 if [ "${SKIP_NOTARIZE}" = false ]; then
-    APPLE_ID="${APPLE_ID:-nitro.poodle@icloud.com}"
+    APPLE_ID="${APPLE_ID:?APPLE_ID を .env で設定してください}"
     TEAM_ID="${TEAM_ID:-JFWN5K94GG}"
 
     if [ -z "${APP_PASSWORD:-}" ]; then

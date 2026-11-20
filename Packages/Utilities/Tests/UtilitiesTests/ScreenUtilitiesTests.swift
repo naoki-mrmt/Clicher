@@ -60,4 +60,56 @@ struct ScreenUtilitiesTests {
         let scale = ScreenUtilities.activeScaleFactor
         #expect(scale == screen.backingScaleFactor)
     }
+
+    @Test("flipGlobalY is an involution")
+    @MainActor func flipGlobalYInvolution() {
+        let y: CGFloat = 123.5
+        #expect(ScreenUtilities.flipGlobalY(ScreenUtilities.flipGlobalY(y)) == y)
+    }
+
+    @Test("flipGlobalY uses primary screen height")
+    @MainActor func flipGlobalYUsesPrimaryHeight() {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        #expect(ScreenUtilities.flipGlobalY(0) == primaryHeight)
+        #expect(ScreenUtilities.flipGlobalY(primaryHeight) == 0)
+    }
+
+    @Test("flipFromGlobalTopLeft is an involution")
+    @MainActor func flipRectInvolution() {
+        let rect = CGRect(x: 100, y: 250, width: 320, height: 180)
+        let flipped = ScreenUtilities.flipFromGlobalTopLeft(rect)
+        #expect(ScreenUtilities.flipFromGlobalTopLeft(flipped) == rect)
+        // X・サイズは変わらない
+        #expect(flipped.origin.x == rect.origin.x)
+        #expect(flipped.size == rect.size)
+    }
+
+    @Test("flipFromGlobalTopLeft matches flipGlobalY for maxY")
+    @MainActor func flipRectMatchesFlipY() {
+        let rect = CGRect(x: 0, y: 100, width: 50, height: 30)
+        let flipped = ScreenUtilities.flipFromGlobalTopLeft(rect)
+        // 左下原点の maxY が左上原点の minY に対応する
+        #expect(flipped.origin.y == ScreenUtilities.flipGlobalY(rect.maxY))
+    }
+
+    @Test("screen(forDisplayID:) round-trips with displayID(for:)")
+    @MainActor func screenForDisplayIDRoundTrip() throws {
+        let primary = try #require(NSScreen.screens.first)
+        let id = ScreenUtilities.displayID(for: primary)
+        let found = ScreenUtilities.screen(forDisplayID: id)
+        #expect(found === primary)
+    }
+
+    @Test("scaleFactor(forDisplayID:) returns the screen's scale")
+    @MainActor func scaleFactorForDisplayID() throws {
+        let primary = try #require(NSScreen.screens.first)
+        let id = ScreenUtilities.displayID(for: primary)
+        #expect(ScreenUtilities.scaleFactor(forDisplayID: id) == primary.backingScaleFactor)
+    }
+
+    @Test("scaleFactor(forDisplayID:) falls back for unknown display")
+    @MainActor func scaleFactorFallback() {
+        let scale = ScreenUtilities.scaleFactor(forDisplayID: CGDirectDisplayID.max)
+        #expect(scale >= 1.0)
+    }
 }

@@ -37,7 +37,8 @@ public enum AnnotateRenderer {
         case .pencil:
             drawPencil(item, in: context)
         case .crop:
-            break // クロップは最終エクスポート時に適用
+            // クロップ自体は最終エクスポート時に適用。ここではドラッグ中のガイド枠のみ描画
+            drawCropGuide(item, in: context)
         }
     }
 
@@ -326,6 +327,23 @@ public enum AnnotateRenderer {
             }
             y += blockSize
         }
+    }
+
+    // MARK: - Crop Guide
+
+    /// クロップ範囲ドラッグ中のガイド枠（破線 + 薄い塗り）
+    private static func drawCropGuide(_ item: AnnotationItem, in ctx: CGContext) {
+        let rect = item.boundingRect
+        guard rect.width > 0, rect.height > 0 else { return }
+
+        ctx.setFillColor(NSColor.systemYellow.withAlphaComponent(0.08).cgColor)
+        ctx.fill(rect)
+
+        ctx.setStrokeColor(NSColor.systemYellow.cgColor)
+        ctx.setLineWidth(1.5)
+        ctx.setLineDash(phase: 0, lengths: [6, 3])
+        ctx.stroke(rect)
+        ctx.setLineDash(phase: 0, lengths: [])
     }
 
     // MARK: - Highlight

@@ -3,20 +3,6 @@ import SwiftUI
 import SharedModels
 import Utilities
 
-// MARK: - Keyable Panel
-
-/// `canBecomeKey` を返す NSPanel サブクラス。
-/// `.nonactivatingPanel` でもボタンクリックを受け付けるために必要。
-private final class KeyablePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-}
-
-/// `acceptsFirstMouse` を返す NSHostingView サブクラス。
-/// 非アクティブウィンドウでも最初のクリックでボタンが反応するようにする。
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-}
-
 /// Lark 風スクロールキャプチャの操作パネル
 /// 「手動スクロール / 自動スクロール / 完了 / キャンセル」を表示
 @MainActor
@@ -204,6 +190,7 @@ private final class ScrollHighlightView: NSView {
 
 /// 操作パネルの共有状態（フレーム数 + 自動スクロール状態）
 @Observable
+@MainActor
 final class ControlsState {
     var frameCount: Int = 0
     var isAutoScrolling: Bool = false

@@ -33,7 +33,7 @@ struct AnnotateDocumentTests {
         #expect(doc.items.isEmpty)
         #expect(!doc.canUndo)
         #expect(!doc.canRedo)
-        #expect(doc.currentTool == .arrow)
+        #expect(doc.currentTool == .rectangle)
         #expect(doc.nextCounterNumber == 1)
         #expect(doc.cropRect == nil)
     }

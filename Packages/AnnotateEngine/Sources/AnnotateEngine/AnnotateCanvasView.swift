@@ -24,6 +24,10 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     /// 選択中のアイテムをドラッグ中か
     private var isDraggingSelected = false
 
+    /// 選択中アイテムをドラッグで実際に動かしたか
+    /// （単なる選択クリックで Undo スタックを消費しないよう、最初の移動時にスナップショットを取る）
+    private var hasMovedSelectedItem = false
+
     /// 描画中の一時アイテム
     private var activeItem: AnnotationItem?
 
@@ -109,6 +113,15 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
             ctx.stroke(selRect)
             ctx.setLineDash(phase: 0, lengths: [])
         }
+
+        // 確定済みクロップ範囲のインジケータ（エクスポート時に切り抜かれる範囲）
+        if activeItem?.toolType != .crop, let cropRect = document.cropRect {
+            ctx.setStrokeColor(NSColor.systemYellow.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.setLineDash(phase: 0, lengths: [6, 3])
+            ctx.stroke(cropRect)
+            ctx.setLineDash(phase: 0, lengths: [])
+        }
     }
 
     // MARK: - Mouse Events
@@ -130,8 +143,9 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
             selectedItemID = hitItem.id
             dragOffset = CGPoint(x: point.x - hitItem.startPoint.x, y: point.y - hitItem.startPoint.y)
             isDraggingSelected = true
-            // ドラッグ移動前の状態を Undo スタックに保存
-            document.saveSnapshot()
+            // スナップショットは実際に移動が始まった時点（mouseDragged）で取る
+            // （単なる選択クリックで Undo ステップを消費しないため）
+            hasMovedSelectedItem = false
             needsDisplay = true
             return
         }
@@ -174,6 +188,11 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
         // 選択中アイテムのドラッグ移動
         if isDraggingSelected, let selectedID = selectedItemID, let offset = dragOffset,
            let item = document.items.first(where: { $0.id == selectedID }) {
+            // 最初の移動時にのみ移動前の状態を Undo スタックに保存
+            if !hasMovedSelectedItem {
+                document.saveSnapshot()
+                hasMovedSelectedItem = true
+            }
             let dx = point.x - offset.x - item.startPoint.x
             let dy = point.y - offset.y - item.startPoint.y
             item.startPoint.x += dx
@@ -204,6 +223,7 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
         // 選択ドラッグ終了
         if isDraggingSelected {
             isDraggingSelected = false
+            hasMovedSelectedItem = false
             dragOffset = nil
             needsDisplay = true
             return
@@ -222,8 +242,19 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
             activeItem.endPoint = point
         }
 
-        // サイズが十分あれば追加
         let rect = activeItem.boundingRect
+
+        // クロップツール: アイテムとして追加せず、ドラッグ範囲をドキュメントのクロップ範囲に設定
+        if activeItem.toolType == .crop {
+            if rect.width > 2, rect.height > 2 {
+                document.cropRect = rect.intersection(bounds)
+            }
+            self.activeItem = nil
+            needsDisplay = true
+            return
+        }
+
+        // サイズが十分あれば追加
         if rect.width > 2 || rect.height > 2 || activeItem.toolType == .pencil {
             document.addItem(activeItem)
         }
@@ -338,6 +369,11 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
     private func finishTextEditing() {
         guard let field = textField, let document else { return }
 
+        // removeFromSuperview() が controlTextDidEndEditing を同期的に発火させ再入するため、
+        // 先に textField / delegate を切り離してから後処理を行う（テキストの二重確定を防ぐ）
+        textField = nil
+        field.delegate = nil
+
         let text = field.stringValue
         if !text.isEmpty {
             let item = AnnotationItem(
@@ -350,7 +386,6 @@ public final class AnnotateCanvasView: NSView, NSTextFieldDelegate {
         }
 
         field.removeFromSuperview()
-        textField = nil
         needsDisplay = true
     }
 

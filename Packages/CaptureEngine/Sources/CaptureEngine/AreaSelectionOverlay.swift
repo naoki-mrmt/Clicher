@@ -4,7 +4,7 @@ import ScreenCaptureKit
 import Utilities
 
 /// エリア選択の結果
-public enum AreaSelectionResult {
+public enum AreaSelectionResult: Sendable {
     /// ドラッグによるエリア選択
     case area(CGRect)
     /// クリックによるウィンドウ選択（クリック位置、macOS スクリーン座標）
@@ -35,18 +35,31 @@ public final class AreaSelectionOverlay {
     public static func select() async -> AreaSelectionResult? {
         await withCheckedContinuation { continuation in
             Task { @MainActor in
+                // 進行中の選択があれば先にキャンセルする
+                // （放置すると continuation が宙吊りのまま dim ウィンドウが残留する）
+                cancelActive()
+
                 var resumed = false
                 let overlay = AreaSelectionWindow { result in
                     guard !resumed else { return }
                     resumed = true
                     activeWindow = nil
-                    nonisolated(unsafe) let safeResult = result
-                    continuation.resume(returning: safeResult)
+                    continuation.resume(returning: result)
                 }
                 activeWindow = overlay
                 overlay.show()
             }
         }
+    }
+
+    /// 進行中のエリア選択をキャンセルする
+    /// 選択待ちの continuation を nil で resume し、オーバーレイウィンドウを閉じる
+    /// 選択を放棄してモード切替する場合等、select() の完了を待たない経路から呼ぶ
+    @MainActor
+    public static func cancelActive() {
+        guard let window = activeWindow else { return }
+        activeWindow = nil
+        window.cancelSelection()
     }
 }
 
@@ -91,6 +104,11 @@ private final class AreaSelectionWindow: NSWindow {
         if let view = contentView {
             invalidateCursorRects(for: view)
         }
+    }
+
+    /// 外部からのキャンセル（モード切替等で選択を放棄する場合）
+    func cancelSelection() {
+        finishSelection(nil)
     }
 
     private func finishSelection(_ result: AreaSelectionResult?) {
@@ -220,22 +238,15 @@ private final class AreaSelectionView: NSView {
         let screenPoint = win.convertPoint(toScreen: point)
 
         // NSScreen 座標（左下原点・グローバル）→ SCK 座標（左上原点・グローバル）に変換
-        // メインスクリーンの高さを基準にする
-        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-        let sckPoint = CGPoint(x: screenPoint.x, y: mainHeight - screenPoint.y)
+        // プライマリスクリーンの高さを基準にする
+        let sckPoint = CGPoint(x: screenPoint.x, y: ScreenUtilities.flipGlobalY(screenPoint.y))
 
         guard let scWindow = availableWindows.first(where: { $0.frame.contains(sckPoint) }) else {
             return nil
         }
 
         // SCK frame（左上原点）→ NSScreen frame（左下原点）→ ビュー座標
-        let scFrame = scWindow.frame
-        let macScreenRect = NSRect(
-            x: scFrame.origin.x,
-            y: mainHeight - scFrame.origin.y - scFrame.height,
-            width: scFrame.width,
-            height: scFrame.height
-        )
+        let macScreenRect = ScreenUtilities.flipFromGlobalTopLeft(scWindow.frame)
         let viewRect = win.convertFromScreen(macScreenRect)
         return viewRect
     }

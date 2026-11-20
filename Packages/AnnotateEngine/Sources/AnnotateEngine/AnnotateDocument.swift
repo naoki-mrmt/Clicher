@@ -2,6 +2,7 @@ import AppKit
 import Observation
 import OSLog
 import SharedModels
+import Utilities
 
 /// アノテーションドキュメント
 /// アノテーション要素の管理と Undo/Redo を提供
@@ -10,6 +11,11 @@ import SharedModels
 public final class AnnotateDocument {
     /// 元画像
     public let originalImage: CGImage
+
+    /// キャンバスのポイント座標 → 元画像のピクセル座標への変換倍率
+    /// キャンバスは `originalImage` のピクセルサイズ / displayScale のポイントサイズでレイアウトされ、
+    /// アノテーション座標はすべてこのポイント座標系で保持される
+    public let displayScale: CGFloat
 
     /// アノテーション要素リスト
     public private(set) var items: [AnnotationItem] = []
@@ -29,8 +35,14 @@ public final class AnnotateDocument {
     /// カウンターの次の番号
     public var nextCounterNumber = 1
 
-    /// クロップ範囲（nil = クロップなし）
+    /// クロップ範囲（キャンバスのポイント座標、nil = クロップなし）
     public var cropRect: CGRect?
+
+    /// 背景設定（Background Tool）
+    public var backgroundConfig = BackgroundConfig()
+
+    /// 背景を有効にするか（エクスポート時に `BackgroundTool.apply` を適用）
+    public var isBackgroundEnabled = false
 
     /// Undo 可能か
     public var canUndo: Bool { !undoStack.isEmpty }
@@ -41,8 +53,9 @@ public final class AnnotateDocument {
     /// アイテム変更時のコールバック（キャンバス再描画用）
     public var onItemsChanged: (() -> Void)?
 
-    public init(image: CGImage) {
+    public init(image: CGImage, displayScale: CGFloat = ScreenUtilities.activeScaleFactor) {
         self.originalImage = image
+        self.displayScale = max(displayScale, 1.0)
     }
 
     // MARK: - Item Management

@@ -5,541 +5,185 @@ description: "Clicher（macOS スクリーンショット & アノテーショ�
 
 # Clicher 開発スキル
 
-macOS スクリーンショット & アノテーションツール「Clicher」の開発における実装パターン集。
+macOS スクリーンショット & アノテーションツール「Clicher」の実装パターン集。
+**このスキルは実コードを正とする。** パターンと実装が食い違う場合は実コードを読み、必要ならこのスキルを更新すること。
 
 ## 技術スタック
 
 | 要素 | 技術 |
 |------|------|
 | UI | SwiftUI + AppKit |
-| アーキテクチャ | MVVM + @Observable |
+| アーキテクチャ | @Observable + コールバック連携（TCA不使用） |
 | キャプチャ | ScreenCaptureKit (macOS 14+) |
 | 画像処理 | Core Image + Core Graphics |
 | OCR | Vision framework |
-| ホットキー | Carbon API (RegisterEventHotKey) |
-| パッケージ | SPM マルチモジュール |
+| 録画 | SCStream + AVAssetWriter |
+| ホットキー | CGEvent tap（Accessibility 権限必須。Carbon は不使用） |
+| パッケージ | SPM マルチモジュール（Swift 6, `.swiftLanguageMode(.v6)`） |
 
-## モジュール一覧
+## モジュール一覧（実在する5パッケージ + アプリ本体）
 
-- **CaptureEngine**: スクリーンキャプチャの核。ScreenCaptureKit ラッパー
-- **Annotator**: アノテーション/編集エンジン。NSView + CALayer ベース
-- **QuickOverlay**: 撮影後のフローティングUI (NSPanel)
-- **BackgroundTool**: スクショ背景の追加・カスタマイズ
-- **ImageProcessor**: 画像変換、エクスポート、クリップボード
-- **OCREngine**: Vision framework によるテキスト認識
-- **HotkeyManager**: グローバルショートカット管理
-- **BrandPreset**: ブランドプリセット管理。カラー/ロゴ/フォント設定をプリセットとして保存し、Annotate・Background・Exportに自動適用
-- **SettingsUI**: 設定画面
-- **Recorder**: 画面録画 (Phase 3)
-- **CloudSync**: クラウドアップロード (Phase 3)
-- **Shared**: 共通モデル、Extensions、ユーティリティ
+| モジュール | 場所 | 内容 |
+|-----------|------|------|
+| **CaptureEngine** | `Packages/CaptureEngine/` | キャプチャの核。`CaptureCoordinator`（フロー統括）、`ScreenCaptureService`（SCK ラッパー）、`AreaSelectionOverlay` / `WindowSelectionOverlay` / `InlineAnnotateOverlay`（選択・編集オーバーレイ）、`ScreenRecordingSession`、`ScrollCaptureSession` + `ImageStitcher`、`OCRService`、`GIFConverter`、`VideoEditor` |
+| **AnnotateEngine** | `Packages/AnnotateEngine/` | 編集ウィンドウ。`AnnotateDocument`（@Observable、Undo/Redo）、`AnnotateCanvasView`（NSView キャンバス）、`AnnotateRenderer`（CGContext 描画）、`AnnotateWindow` / `AnnotateEditorView`、`BackgroundTool` |
+| **OverlayUI** | `Packages/OverlayUI/` | `QuickAccessOverlay`（撮影後フローティング）、`MenuBarView`、`SettingsView`、`BrandPresetSettingsView`、`OCRResultPanel`、`FloatingScreenshot`（ピン留め）、`VideoEditorView`、`RecordingIndicator`、`ScrollCaptureControls`、`PermissionGuideView`、`ToastOverlay` |
+| **SharedModels** | `Packages/SharedModels/` | `AppState`、`CaptureMode`、`CaptureResult`、`AnnotationItem` / `AnnotationToolType` / `AnnotationStyle`、`BrandPreset`、`ImageFormat`、`L10n` 等の共通型 |
+| **Utilities** | `Packages/Utilities/` | `HotkeyManager`（CGEvent tap）、`PermissionManager`、`AppSettings`、`ImageExporter`、`WatermarkRenderer`、`BrandPresetStore`、`ScreenUtilities`、`LoginItemManager`、`UpdateManager`、`Logger+Clicher` |
+| アプリ本体 | `Clicher/` | `ClicherApp`（MenuBarExtra + Settings シーン）、`AppDelegate`（ホットキー登録・権限ガイド） |
+
+## キャプチャフロー（Lark 風 UX）
+
+ユーザーが覚えるショートカットは **⌘⇧A の1つだけ**（設定でカスタム可、`AppSettings.hotkeyKeyCode/hotkeyModifiers`）。
+
+```
+⌘⇧A
+ ├─ 録画中 → 録画停止（AppDelegate のホットキーコールバック）
+ └─ それ以外 → CaptureCoordinator.startCapture(mode: .area)
+      → AreaSelectionOverlay（全画面 dim + ドラッグ選択）
+      → InlineAnnotateOverlay（選択範囲をくり抜き表示 + ツールバー + モードタブバー）
+          モードタブバー（ModeTabBarView）から
+          エリア / ウィンドウ / 全画面 / スクロール / OCR / 録画 に切替
+      → 確定 → QuickAccessOverlay（コピー / 保存 / 編集 / ピン留め）
+```
+
+- HUD パネル方式（旧設計）は廃止済み。モード切替は `InlineAnnotateOverlay` 内のタブバーで行う
+- メニューバー（`MenuBarView`）からも各モードを直接起動できる
+- フロー全体の状態は `CaptureCoordinator`（@MainActor @Observable）が `isCapturing` / `isRecording` で管理。
+  **新しい終了経路（エラー・キャンセル含む）を追加したら、必ず `isCapturing` がリセットされることを確認する**（リセット漏れ＝アプリ再起動まで全キャプチャ不能）
 
 ## 実装パターン
 
-### 1. ScreenCaptureKit でスクリーンショット
+### 1. ScreenCaptureKit でスクリーンショット（実装: `ScreenCaptureService.swift`）
 
 ```swift
-import ScreenCaptureKit
-
-actor ScreenCapturer {
-    func captureFullScreen(display: SCDisplay) async throws -> CGImage {
-        let filter = SCContentFilter(display: display, excludingWindows: [])
-        let config = SCStreamConfiguration()
-        config.width = display.width * 2  // Retina
-        config.height = display.height * 2
-        config.showsCursor = false
-        
-        return try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: config
-        )
-    }
-    
-    func captureWindow(_ window: SCWindow) async throws -> CGImage {
-        let filter = SCContentFilter(desktopIndependentWindow: window)
-        let config = SCStreamConfiguration()
-        config.showsCursor = false
-        config.capturesShadowsOnly = false
-        config.shouldBeOpaque = false  // 影付き透過
-        
-        return try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: config
-        )
-    }
-    
-    func captureArea(rect: CGRect, display: SCDisplay) async throws -> CGImage {
-        let filter = SCContentFilter(display: display, excludingWindows: [])
-        let config = SCStreamConfiguration()
-        config.sourceRect = rect
-        config.width = Int(rect.width) * 2
-        config.height = Int(rect.height) * 2
-        config.showsCursor = false
-        
-        return try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: config
-        )
-    }
-}
+// ✅ ウィンドウ・全画面: SCScreenshotManager.captureImage を使用
+let filter = SCContentFilter(desktopIndependentWindow: window)
+let config = SCStreamConfiguration()
+config.showsCursor = false
+let image = try await SCScreenshotManager.captureImage(
+    contentFilter: filter,
+    configuration: config
+)
 ```
 
-### 2. エリア選択オーバーレイ
+**例外**: エリアキャプチャのみ `CGWindowListCreateImage` を意図的に使用している
+（`SCScreenshotManager` の `sourceRect` にバグがあるための回避策。`ScreenCaptureService.captureArea` のコメント参照）。
+deprecated 警告は承知の上での選択なので、SCK へ「修正」しないこと。挙動を変える場合は
+「フルディスプレイを `captureImage` で撮って `CGImage.cropping(to:)` でピクセル座標クロップ」が代替案。
+
+注意点:
+- `SCShareableContent.current` は非同期。メインスレッドをブロックしない
+- スケール係数は**ターゲット画面**から取る（カーソル下の画面ではない）。`CGImage` はピクセル単位
+- 自前のオーバーレイが写り込まないよう、撮影前にオーバーレイを隠す（`SCContentFilter(display:excludingWindows:)` の除外も検討）
+
+### 2. 座標系の変換（実装: `ScreenUtilities.swift`）
+
+3つの座標系が混在する。変換ヘルパーは `ScreenUtilities` に集約すること:
+
+| 座標系 | 原点 | 使用箇所 |
+|--------|------|---------|
+| AppKit (NSScreen/NSWindow/NSEvent) | **プライマリ画面**左下 | オーバーレイ、マウス座標 |
+| CoreGraphics / SCWindow.frame | プライマリ画面左上 | SCK、CGWindowList |
+| CGImage | ピクセル単位（スケール倍） | 画像処理 |
+
+**グローバル座標の Y 反転は必ずプライマリ画面（`NSScreen.screens.first`）の高さで行う。**
+マウス下の画面（`ScreenUtilities.activeScreen`）の高さを使うとマルチディスプレイで壊れる。
+
+### 3. オーバーレイパネル（実装: `AreaSelectionOverlay.swift` ほか）
 
 ```swift
-import AppKit
-
-class AreaSelectorPanel: NSPanel {
-    private var selectionRect: CGRect = .zero
-    private var startPoint: CGPoint = .zero
-    
-    init(screen: NSScreen) {
-        super.init(
-            contentRect: screen.frame,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        self.level = .screenSaver
-        self.isOpaque = false
-        self.backgroundColor = NSColor.black.withAlphaComponent(0.3)
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        self.contentView = AreaSelectorView()
-    }
-}
-
-class AreaSelectorView: NSView {
-    var selectionRect: CGRect = .zero
-    var onSelectionComplete: ((CGRect) -> Void)?
-    
-    override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        selectionRect.origin = point
-    }
-    
-    override func mouseDragged(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        selectionRect.size = CGSize(
-            width: point.x - selectionRect.origin.x,
-            height: point.y - selectionRect.origin.y
-        )
-        needsDisplay = true
-    }
-    
-    override func mouseUp(with event: NSEvent) {
-        onSelectionComplete?(selectionRect.standardized)
-    }
-    
-    override func draw(_ dirtyRect: NSRect) {
-        // 半透明の暗いオーバーレイ
-        NSColor.black.withAlphaComponent(0.3).setFill()
-        dirtyRect.fill()
-        
-        // 選択範囲を切り抜き（明るく表示）
-        guard !selectionRect.isEmpty else { return }
-        let path = NSBezierPath(rect: selectionRect.standardized)
-        NSColor.clear.setFill()
-        path.fill(using: .clear)
-        
-        // 選択枠の白い境界線
-        NSColor.white.setStroke()
-        path.lineWidth = 1.0
-        path.stroke()
-    }
-}
+let panel = NSPanel(
+    contentRect: screen.frame,
+    styleMask: [.borderless, .nonactivatingPanel],
+    backing: .buffered,
+    defer: false
+)
+panel.level = .screenSaver            // キャプチャ UI 自体が写り込まないレベル設定に注意
+panel.isOpaque = false
+panel.backgroundColor = .clear
+panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 ```
 
-### 3. キャプチャHUD（⌘⇧A で起動）
+- **キーボード入力を受けたいパネル**（ESC・数字キー等）は `canBecomeKey` を `true` に
+  オーバーライドした NSPanel サブクラスを使う。borderless + nonactivating のままでは
+  ローカルモニタにキーイベントが届かない
+- `NSWindow` を `close()` する場合は生成時に `isReleasedWhenClosed = false` を設定する
+  （Swift の強参照と二重解放になりクラッシュする）。`orderOut` + 参照破棄でも可
+- 継続（continuation）で選択結果を待つオーバーレイには**必ずキャンセル API** を用意し、
+  モード切替などで放棄する際に呼ぶ（宙吊り continuation はリーク + 状態破壊の元）
+
+### 4. グローバルホットキー（実装: `Utilities/HotkeyManager.swift`）
+
+CGEvent tap で実装。Carbon (`RegisterEventHotKey`) は使わない。
 
 ```swift
-import AppKit
-import SwiftUI
-
-/// ⌘⇧A で表示されるキャプチャモード選択HUD
-class CaptureHUDPanel: NSPanel {
-    init() {
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 200),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        self.level = .floating
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.hasShadow = true
-        self.hidesOnDeactivate = true
-        self.collectionBehavior = [.canJoinAllSpaces, .transient]
-        
-        // SwiftUI View をホスト
-        self.contentView = NSHostingView(rootView: CaptureHUDView(
-            onModeSelected: { [weak self] mode in
-                self?.close()
-                // → CaptureEngine でモード実行
-            }
-        ))
-        
-        // 画面中央に配置
-        if let screen = NSScreen.main {
-            let x = (screen.frame.width - frame.width) / 2
-            let y = (screen.frame.height - frame.height) / 2
-            setFrameOrigin(NSPoint(x: x, y: y))
-        }
-    }
-}
-
-struct CaptureHUDView: View {
-    let onModeSelected: (CaptureMode) -> Void
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Clicher")
-                .font(.headline)
-            
-            HStack(spacing: 12) {
-                hudButton("1", icon: "rectangle.dashed", label: "エリア", mode: .area)
-                hudButton("2", icon: "macwindow", label: "ウィンドウ", mode: .window)
-                hudButton("3", icon: "display", label: "全画面", mode: .fullscreen)
-            }
-            // Phase 2-3 のモードは後から追加
-        }
-        .padding(24)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .onKeyPress(.escape) { dismiss(); return .handled }
-    }
-    
-    private func hudButton(_ key: String, icon: String, label: String, mode: CaptureMode) -> some View {
-        Button { onModeSelected(mode) } label: {
-            VStack(spacing: 6) {
-                Image(systemName: icon).font(.title2)
-                Text(label).font(.caption)
-                Text(key).font(.caption2).foregroundStyle(.secondary)
-            }
-            .frame(width: 100, height: 80)
-        }
-        .buttonStyle(.plain)
-        .onKeyPress(KeyEquivalent(Character(key))) { onModeSelected(mode); return .handled }
-    }
-}
+// Accessibility 権限がないと tapCreate は nil を返す
+guard let tap = CGEvent.tapCreate(
+    tap: .cgSessionEventTap,
+    place: .headInsertEventTap,   // 他アプリ（Lark 等）より先にイベントを取る
+    options: .defaultTap,
+    eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+    callback: hotkeyCallback,
+    userInfo: nil
+) else { return }
 ```
 
-### 4. Quick Access Overlay
+- 起動直後に `register()`、`configure()` 後に `reregister()` で優先度を確保する流れは `AppDelegate` 参照
+- 修飾キーは `.deviceIndependentFlagsMask` でマスクして**完全一致**で比較（⌘⇧⌥A が ⌘⇧A を誤発火させない）
 
-```swift
-class QuickAccessPanel: NSPanel {
-    init() {
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 60),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        self.level = .floating
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.hasShadow = true
-        self.isMovableByWindowBackground = true
-        // 他アプリのフォーカスを奪わない
-        self.hidesOnDeactivate = false
-        self.becomesKeyOnlyIfNeeded = true
-    }
-    
-    func show(with image: NSImage, at position: OverlayPosition) {
-        // SwiftUI HostingView をセット
-        let overlayView = QuickAccessOverlayView(
-            image: image,
-            onCopy: { [weak self] in self?.copyToClipboard(image) },
-            onSave: { [weak self] in self?.saveToFile(image) },
-            onEdit: { [weak self] in self?.openAnnotator(image) },
-            onDrag: { [weak self] in self?.startDrag(image) }
-        )
-        self.contentView = NSHostingView(rootView: overlayView)
-        
-        // 位置を計算
-        let frame = calculateFrame(for: position)
-        self.setFrame(frame, display: true)
-        self.orderFront(nil)
-    }
-}
-```
+### 5. アノテーション（実装: `AnnotateEngine` + `SharedModels`）
 
-### 5. アノテーション ツール Protocol
+ツールは protocol ではなく **enum ベース**:
+- `AnnotationToolType`（SharedModels）: `.arrow .rectangle .ellipse .line .text .pixelate .highlight .counter .pencil .crop`
+- `AnnotationItem`（SharedModels）: 参照型。Undo スナップショット用に `copy()` を持つ（**id は保持**すること）
+- `AnnotateDocument`: `items` + `undoStack`/`redoStack`（スナップショット方式、上限50）。
+  スナップショットは**実際に変更が起きる直前**に取る（選択クリックだけで取らない）
+- `AnnotateCanvasView`（NSView）: マウスイベント → アイテム生成・編集。座標は**ポイント**
+- `AnnotateRenderer`: `switch item.toolType` で CGContext に描画。エクスポート時は
+  ポイント→ピクセルの `ctx.scaleBy(x: scale, y: scale)` を忘れない（Retina ずれの定番バグ）
 
-```swift
-protocol AnnotationTool {
-    var toolType: ToolType { get }
-    var cursor: NSCursor { get }
-    
-    func mouseDown(at point: CGPoint, in canvas: AnnotationCanvas)
-    func mouseDragged(to point: CGPoint, in canvas: AnnotationCanvas)
-    func mouseUp(at point: CGPoint, in canvas: AnnotationCanvas)
-    func keyDown(with event: NSEvent, in canvas: AnnotationCanvas)
-}
+### 6. ブランドプリセット（実装: `SharedModels/BrandPreset.swift` + `Utilities/BrandPresetStore.swift`）
 
-enum ToolType: String, CaseIterable {
-    case arrow, rectangle, filledRectangle, ellipse, line
-    case text, pixelate, blur, spotlight
-    case counter, pencil, highlighter, crop
-    
-    var shortcutKey: Character? {
-        switch self {
-        case .arrow: return "a"
-        case .rectangle: return "r"
-        case .text: return "t"
-        case .pencil: return "p"
-        case .highlighter: return "h"
-        case .blur: return "b"
-        case .counter: return "n"
-        case .crop: return "c"
-        default: return nil
-        }
-    }
-}
-```
+- モデル: `BrandPreset`（`logoImageData: Data?` — CLAUDE.md の旧名 `logoImage` ではない）
+- 永続化: `~/Library/Application Support/Clicher/presets/` に JSON、ロゴは `{presetId}.logo.png`
+- `.clipreset` 形式でインポート/エクスポート（`BrandPresetStore`）
+- 適用ポイント: Annotate のデフォルト色、`WatermarkRenderer` のロゴ合成、`BrandPresetSettingsView` の CRUD
 
-### 6. グローバルホットキー登録
+### 7. 配布（実装: `Scripts/` + `Distribution/`）
 
-```swift
-import Carbon
-
-class HotkeyRegistrar {
-    private var hotkeyRef: EventHotKeyRef?
-    
-    func register(
-        keyCode: UInt32,
-        modifiers: UInt32,
-        id: UInt32,
-        handler: @escaping () -> Void
-    ) {
-        var hotKeyID = EventHotKeyID(signature: 0x434C4943, id: id) // "CLIC"
-        var eventType = EventTypeSpec(
-            eventClass: UInt32(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
-        
-        // ハンドラの登録
-        let handlerRef = Unmanaged.passRetained(handler as AnyObject)
-        InstallEventHandler(
-            GetApplicationEventTarget(),
-            { _, event, userData -> OSStatus in
-                guard let userData = userData else { return OSStatus(eventNotHandledErr) }
-                let handler = Unmanaged<AnyObject>.fromOpaque(userData)
-                    .takeUnretainedValue() as! () -> Void
-                handler()
-                return noErr
-            },
-            1, &eventType,
-            handlerRef.toOpaque(),
-            nil
-        )
-        
-        RegisterEventHotKey(
-            keyCode, modifiers, hotKeyID,
-            GetApplicationEventTarget(), 0, &hotkeyRef
-        )
-    }
-}
-```
-
-### 7. ピクセル化（モザイク）
-
-```swift
-import CoreImage
-
-func pixelate(image: CGImage, rect: CGRect, blockSize: Int = 10) -> CGImage? {
-    let ciImage = CIImage(cgImage: image)
-    
-    // 指定範囲を切り出し
-    let cropped = ciImage.cropped(to: rect)
-    
-    // ピクセル化フィルタ
-    guard let filter = CIFilter(name: "CIPixellate") else { return nil }
-    filter.setValue(cropped, forKey: kCIInputImageKey)
-    filter.setValue(blockSize, forKey: kCIInputScaleKey)
-    filter.setValue(CIVector(cgPoint: rect.origin), forKey: kCIInputCenterKey)
-    
-    guard let output = filter.outputImage else { return nil }
-    
-    // 元画像に合成
-    let composited = output.composited(over: ciImage)
-    
-    let context = CIContext()
-    return context.createCGImage(composited, from: ciImage.extent)
-}
-```
-
-### 8. ブランドプリセット
-
-```swift
-import Foundation
-
-// MARK: - モデル定義
-
-struct BrandPreset: Codable, Identifiable, Equatable {
-    let id: UUID
-    var name: String
-    var primaryColor: CodableColor
-    var secondaryColor: CodableColor
-    var accentColor: CodableColor
-    var logoImageData: Data?
-    var logoPosition: LogoPosition
-    var logoOpacity: Double
-    var fontName: String?
-    var fontSize: CGFloat
-    var backgroundGradient: GradientConfig?
-    var exportSettings: ExportConfig?
-    var isDefault: Bool
-    
-    static let empty = BrandPreset(
-        id: UUID(), name: "New Preset",
-        primaryColor: .init(hex: "#007AFF"),
-        secondaryColor: .init(hex: "#5856D6"),
-        accentColor: .init(hex: "#FF9500"),
-        logoPosition: .bottomRight, logoOpacity: 0.3,
-        fontSize: 14, isDefault: false
-    )
-}
-
-enum LogoPosition: String, Codable, CaseIterable {
-    case topLeft, topRight, bottomLeft, bottomRight, center
-}
-
-// MARK: - プリセットマネージャー
-
-@Observable
-class BrandPresetManager {
-    private(set) var presets: [BrandPreset] = []
-    var activePreset: BrandPreset? {
-        presets.first(where: \.isDefault) ?? presets.first
-    }
-    
-    private let storageURL: URL = {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
-        return appSupport.appendingPathComponent("Clicher/presets")
-    }()
-    
-    func load() throws {
-        let url = storageURL.appendingPathComponent("presets.json")
-        let data = try Data(contentsOf: url)
-        presets = try JSONDecoder().decode([BrandPreset].self, from: data)
-    }
-    
-    func save() throws {
-        try FileManager.default.createDirectory(
-            at: storageURL, withIntermediateDirectories: true
-        )
-        let data = try JSONEncoder().encode(presets)
-        try data.write(to: storageURL.appendingPathComponent("presets.json"))
-    }
-    
-    func setDefault(_ preset: BrandPreset) {
-        for i in presets.indices {
-            presets[i].isDefault = (presets[i].id == preset.id)
-        }
-    }
-    
-    // .clipreset のエクスポート（JSON + ロゴをzip化）
-    func exportPreset(_ preset: BrandPreset, to url: URL) throws {
-        // JSON + logo data を zip アーカイブにまとめる
-        let json = try JSONEncoder().encode(preset)
-        // ZIPは Archive framework or カスタム実装
-    }
-}
-
-// MARK: - Annotate連携：ブランドカラーの自動適用
-
-extension AnnotationCanvas {
-    func applyBrandDefaults(from preset: BrandPreset) {
-        // ツールのデフォルト色をブランドカラーに設定
-        toolSettings.defaultStrokeColor = preset.primaryColor.nsColor
-        toolSettings.defaultFillColor = preset.secondaryColor.nsColor
-        toolSettings.defaultTextColor = preset.primaryColor.nsColor
-        if let fontName = preset.fontName {
-            toolSettings.defaultFont = NSFont(name: fontName, size: preset.fontSize)
-                ?? .systemFont(ofSize: preset.fontSize)
-        }
-    }
-}
-
-// MARK: - エクスポート時のロゴウォーターマーク
-
-func applyWatermark(
-    to image: CGImage,
-    logo: CGImage,
-    position: LogoPosition,
-    opacity: Double,
-    padding: CGFloat = 16
-) -> CGImage? {
-    let width = image.width
-    let height = image.height
-    let logoSize = CGSize(
-        width: min(CGFloat(logo.width), CGFloat(width) * 0.15),
-        height: min(CGFloat(logo.height), CGFloat(height) * 0.15)
-    )
-    
-    guard let context = CGContext(
-        data: nil, width: width, height: height,
-        bitsPerComponent: 8, bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    ) else { return nil }
-    
-    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-    context.setAlpha(opacity)
-    
-    let logoRect: CGRect = {
-        switch position {
-        case .topLeft:     return CGRect(x: padding, y: CGFloat(height) - logoSize.height - padding, width: logoSize.width, height: logoSize.height)
-        case .topRight:    return CGRect(x: CGFloat(width) - logoSize.width - padding, y: CGFloat(height) - logoSize.height - padding, width: logoSize.width, height: logoSize.height)
-        case .bottomLeft:  return CGRect(x: padding, y: padding, width: logoSize.width, height: logoSize.height)
-        case .bottomRight: return CGRect(x: CGFloat(width) - logoSize.width - padding, y: padding, width: logoSize.width, height: logoSize.height)
-        case .center:      return CGRect(x: (CGFloat(width) - logoSize.width) / 2, y: (CGFloat(height) - logoSize.height) / 2, width: logoSize.width, height: logoSize.height)
-        }
-    }()
-    
-    context.draw(logo, in: logoRect)
-    return context.makeImage()
-}
-```
+- `Scripts/build-release.sh`: ビルド + 署名 + Notarization + DMG
+- `Scripts/create-release.sh`: バージョンバンプ → GitHub Release → Homebrew tap 更新（`/release` スキルが使用）
+- `Scripts/generate-appcast.sh`: Sparkle appcast 生成
+- `Distribution/homebrew-cask/clicher.rb`: tap 用テンプレート（tap: `naoki-mrmt/homebrew-clicher`）
+- **シークレット（APP_PASSWORD 等）はスクリプトにもコメントにも書かない。** `.env`（gitignore 済み）から渡す
 
 ## テスト方針
 
-- **CaptureEngine**: 権限モック + SCContentFilter の構築を検証
-- **Annotator**: 各ツールの座標計算、レイヤー追加/削除をユニットテスト
-- **ImageProcessor**: 画像変換の入出力をスナップショットテスト
-- **HotkeyManager**: キーコード変換のユニットテスト
-- **BrandPresetManager**: プリセットのCRUD、デフォルト設定切り替え、JSON永続化のユニットテスト
-- **UI テスト**: XCUITest でキャプチャ→編集→保存フローの統合テスト
+Swift Testing を使用（`@Suite` / `@Test` / `#expect`）。XCTest はパッケージテストでは禁止。
+**例外**: `ClicherUITests/` の XCUITest のみ XCTest（Swift Testing は UI テスト非対応）。
+
+- CaptureEngine: `ScreenCaptureServiceProtocol` 経由でモック注入。実キャプチャを発火させるテストを書かない
+- AnnotateEngine: ドキュメントの状態遷移 + 描画結果の検証
+- SharedModels / Utilities: モデル・永続化のユニットテスト（実ユーザーディレクトリではなく temp dir + `defer` cleanup）
+- 列挙テストは `@Test(arguments: X.allCases)` のパラメータ化で書く
 
 ## 実装時のチェックリスト
 
-新しいアノテーションツールを追加する時：
+新しいアノテーションツールを追加する時:
 
-1. `AnnotationTool` protocol に準拠した struct/class を作成
-2. `ToolType` enum にケースを追加
-3. 対応する CALayer サブクラスを作成（描画ロジック）
-4. `AnnotationCanvas` のツール切替ロジックに追加
-5. ツールバーにアイコンを追加
-6. ショートカットキーを `ToolType.shortcutKey` に登録
-7. Undo/Redo 対応を確認
-8. **ブランドプリセットのデフォルト色が反映されることを確認**
-9. ユニットテストを追加
+1. `AnnotationToolType`（SharedModels）にケースを追加（`label` / `systemImage` も）
+2. `AnnotateCanvasView` のマウスハンドリングに挙動を追加
+3. `AnnotateRenderer` の `switch item.toolType` に描画を追加
+4. ツールバー UI（`InlineAnnotateOverlay` / `AnnotateEditorView`）にボタンを追加
+5. Undo/Redo（スナップショットタイミング）を確認
+6. ブランドプリセットのデフォルト色が反映されることを確認
+7. Swift Testing でテストを追加
 
-新しいキャプチャモードを追加する時：
+新しいキャプチャモードを追加する時:
 
-1. `CaptureMode` enum にケースを追加
-2. `ScreenCapturer` に対応メソッドを実装
-3. All-In-One UI にモードを追加
-4. ホットキー設定に追加
-5. Quick Access Overlay からの遷移を確認
-
-ブランドプリセットを更新する時：
-
-1. `BrandPreset` モデルのプロパティ変更
-2. `BrandPresetManager` の保存/読み込みロジック更新
-3. Annotate ツールへの自動適用ポイントを確認
-4. Background Tool への連携を確認
-5. エクスポート時のウォーターマーク適用を確認
-6. `.clipreset` のインポート/エクスポート互換性テスト
+1. `CaptureMode`（SharedModels）にケースを追加
+2. `CaptureCoordinator` にフローを実装（**全終了経路で `isCapturing` リセットを確認**）
+3. `ModeTabBarView`（InlineAnnotateOverlay 内）と `MenuBarView` に追加
+4. `QuickAccessOverlay` への遷移を確認
+5. マルチディスプレイ（座標反転・スケール係数）で動作確認

@@ -54,7 +54,8 @@ public final class RecordingCompletePanel {
         let fittingSize = hostingView.fittingSize
         hostingView.setFrameSize(fittingSize)
 
-        let p = NSPanel(
+        // ESC のローカルキーモニタが効くよう、キーウィンドウになれるパネルを使う
+        let p = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: fittingSize),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
@@ -71,6 +72,7 @@ public final class RecordingCompletePanel {
 
         p.center()
         p.orderFrontRegardless()
+        p.makeKey()
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 {
